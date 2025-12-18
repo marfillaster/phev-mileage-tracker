@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -50,11 +49,11 @@ export function MileageEntryForm({
         date: editEntry.date,
         hevOdo: editEntry.hevOdo?.toString() || "",
         evOdo: editEntry.evOdo?.toString() || "",
-        odo: editEntry.odo.toString(),
-        fuelAmount: editEntry.fuelAmount.toString(),
-        fuelCost: editEntry.fuelCost.toString(),
-        pluginAmount: editEntry.pluginAmount.toString(),
-        energyTariff: editEntry.energyTariff.toString(),
+        odo: editEntry.odo?.toString() || "",
+        fuelAmount: editEntry.fuelAmount?.toString() || "",
+        fuelCost: editEntry.fuelCost?.toString() || "",
+        pluginAmount: editEntry.pluginAmount?.toString() || "",
+        energyTariff: editEntry.energyTariff?.toString() || "14",
       })
     } else {
       setFormData({
@@ -210,6 +209,11 @@ export function MileageEntryForm({
               </Button>
             )}
           </div>
+          <DialogDescription className="sr-only">
+            {editEntry
+              ? "Edit your mileage entry details"
+              : "Add a new mileage entry with ODO readings, fuel, and energy data"}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

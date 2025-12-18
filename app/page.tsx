@@ -11,7 +11,7 @@ import { Footer } from "@/components/footer"
 import { AppToolbar } from "@/components/app-toolbar"
 import { Button } from "@/components/ui/button"
 import { Plus, Download, Upload, Moon, Sun, HelpCircle, FileText, BarChart3 } from "lucide-react"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription } from "@/components/ui/sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -418,6 +418,9 @@ export default function MileageTracker() {
           {entries.length > 0 && (
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                <SheetDescription className="sr-only">
+                  Navigation menu with export options, currency settings, and theme toggle
+                </SheetDescription>
                 <nav className="flex flex-col h-full py-6">
                   <div className="px-3 space-y-1">
                     <Link

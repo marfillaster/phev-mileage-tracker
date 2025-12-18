@@ -155,15 +155,22 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                       onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 p-0"
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setOpenPopover(openPopover === "distance" ? null : "distance")
+                            }
+                          }}
                         >
                           <Info className="h-3.5 w-3.5" />
                           <span className="sr-only">Distance formula</span>
-                        </Button>
+                        </span>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto text-sm" align="end">
                         <div className="space-y-1">
@@ -191,7 +198,7 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                 <TableHead className="text-right">Fuel (L)</TableHead>
                 <TableHead className="text-right">
                   <div
-                    className="flex items-center justify-end gap-2"
+                    className="flex items-center justify-end gap-2 cursor-pointer select-none"
                     onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
                   >
                     Energy
@@ -201,15 +208,22 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                       onOpenChange={(open) => setOpenPopover(open ? "energy" : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 p-0"
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setOpenPopover(openPopover === "energy" ? null : "energy")
+                            }
+                          }}
                         >
                           <Info className="h-3.5 w-3.5" />
                           <span className="sr-only">Energy formula</span>
-                        </Button>
+                        </span>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto text-sm" align="end">
                         <div className="space-y-1">
@@ -230,11 +244,9 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer select-none"
-                  onClick={() => {
-                    const views: Array<"total" | "perKm" | "perDay"> = ["total", "perKm", "perDay"]
-                    const currentIndex = views.indexOf(costView)
-                    setCostView(views[(currentIndex + 1) % views.length])
-                  }}
+                  onClick={() =>
+                    setCostView((prev) => (prev === "total" ? "perKm" : prev === "perKm" ? "perDay" : "total"))
+                  }
                 >
                   <div className="flex items-center justify-end gap-2">
                     Cost ({currencySymbol}){costView === "perKm" && "/km"}
@@ -244,15 +256,22 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                       onOpenChange={(open) => setOpenPopover(open ? "cost" : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 p-0"
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setOpenPopover(openPopover === "cost" ? null : "cost")
+                            }
+                          }}
                         >
                           <Info className="h-3.5 w-3.5" />
                           <span className="sr-only">Cost formula</span>
-                        </Button>
+                        </span>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto text-sm" align="end">
                         <div className="space-y-1.5">
@@ -301,15 +320,22 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                         onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
                       >
                         <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 p-0"
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
                             onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                setOpenPopover(openPopover === "efficiency" ? null : "efficiency")
+                              }
+                            }}
                           >
                             <Info className="h-3.5 w-3.5" />
                             <span className="sr-only">Efficiency formula</span>
-                          </Button>
+                          </span>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto text-sm" align="end">
                           <div className="space-y-1.5">

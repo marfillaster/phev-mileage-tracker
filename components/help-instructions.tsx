@@ -1,6 +1,6 @@
 "use client"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Info } from "lucide-react"
 
 interface HelpInstructionsProps {
@@ -59,6 +59,9 @@ export function HelpInstructions({ open, onClose }: HelpInstructionsProps) {
             <Info className="h-5 w-5" />
             Data Collection Guide
           </DialogTitle>
+          <DialogDescription>
+            Learn where to find each data field needed to track your PHEV mileage accurately.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <div className="bg-muted/50 p-3 rounded-lg">

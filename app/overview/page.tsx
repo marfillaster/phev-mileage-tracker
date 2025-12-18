@@ -24,7 +24,7 @@ import {
 import Link from "next/link"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { AppToolbar } from "@/components/app-toolbar"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetDescription } from "@/components/ui/sheet"
 import {
   loadVehicleData,
   saveVehicleData,
@@ -358,6 +358,9 @@ export default function Overview() {
             {entries.length > 0 && (
               <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
                 <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                  <SheetDescription className="sr-only">
+                    Navigation menu with export options, currency settings, and theme toggle
+                  </SheetDescription>
                   <nav className="flex flex-col h-full py-6">
                     <div className="px-3 space-y-1">
                       <Link
@@ -541,6 +544,9 @@ export default function Overview() {
             {entries.length > 0 && (
               <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
                 <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                  <SheetDescription className="sr-only">
+                    Navigation menu with export options, currency settings, and theme toggle
+                  </SheetDescription>
                   <nav className="flex flex-col h-full py-6">
                     <div className="px-3 space-y-1">
                       <Link
@@ -720,6 +726,9 @@ export default function Overview() {
           {entries.length > 0 && (
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                <SheetDescription className="sr-only">
+                  Navigation menu with export options, currency settings, and theme toggle
+                </SheetDescription>
                 <nav className="flex flex-col h-full py-6">
                   <div className="px-3 space-y-1">
                     <Link
