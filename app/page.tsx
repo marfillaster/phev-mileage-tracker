@@ -7,6 +7,7 @@ import { MileageEntryForm } from "@/components/mileage-entry-form"
 import { MileageTable, generateCSV } from "@/components/mileage-table"
 import { InstallPrompt } from "@/components/install-prompt"
 import { HelpInstructions } from "@/components/help-instructions"
+import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Plus, Menu, Download, Upload, Moon, Sun, HelpCircle, FileText, BarChart3 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -273,7 +274,7 @@ export default function Page() {
             <MileageTable entries={entries} onDelete={handleDeleteEntry} onEdit={handleEditEntry} />
             <button
               onClick={() => setIsFormOpen(true)}
-              className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors flex items-center justify-center"
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors flex items-center justify-center"
               aria-label="Add new entry"
             >
               <Plus className="h-6 w-6" />
@@ -316,6 +317,7 @@ export default function Page() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      <Footer />
     </main>
   )
 }

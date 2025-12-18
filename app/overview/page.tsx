@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import type { MileageEntry } from "../page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Footer } from "@/components/footer"
 import { Calendar, Fuel, Zap, DollarSign, Gauge, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -188,6 +189,7 @@ export default function OverviewPage() {
             </div>
           </div>
         </div>
+        <Footer />
       </main>
     )
   }
@@ -249,6 +251,7 @@ export default function OverviewPage() {
             </div>
           </div>
         </div>
+        <Footer />
       </main>
     )
   }
@@ -451,6 +454,7 @@ export default function OverviewPage() {
           </div>
         )}
       </div>
+      <Footer />
     </main>
   )
 }

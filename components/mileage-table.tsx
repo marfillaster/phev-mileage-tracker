@@ -326,7 +326,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                               </div>
                               <div>
                                 <p className="text-xs font-medium">EV as L/100km*:</p>
-                                <p className="text-xs">Cost-equivalent: 100 ÷ EV km/L*</p>
+                                <p className="text-xs">100 ÷ EV km/L*</p>
                               </div>
                               <div>
                                 <p className="text-xs font-medium">HEV L/100km:</p>
@@ -549,37 +549,8 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
         </div>
       </div>
 
+      {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
-        <div className="flex gap-2 mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowDistancePerDay(!showDistancePerDay)}
-            className="flex-1"
-          >
-            Distance: {showDistancePerDay ? "Per Day" : "Total"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (costView === "total") setCostView("perKm")
-              else if (costView === "perKm") setCostView("perDay")
-              else setCostView("total")
-            }}
-            className="flex-1"
-          >
-            Cost: {costView === "total" ? "Total" : costView === "perKm" ? "Per km" : "Per Day"}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
-            className="flex-1"
-          >
-            {efficiencyUnit === "kmPer" ? "km/L, Wh/km" : "L/100km, kWh/100km"}
-          </Button>
-        </div>
         {sortedEntries.map((entry, index) => {
           const prevEntry = sortedEntries[index + 1] || null
           const calculated = calculateValues(entry, prevEntry)
@@ -612,8 +583,54 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
-                  <dt className="text-muted-foreground">{showDistancePerDay ? "Distance/day" : "Distance"}</dt>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
+                  <dt className="text-muted-foreground flex items-start justify-between">
+                    <span>{showDistancePerDay ? "Distance/day" : "Distance"}</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setShowDistancePerDay(!showDistancePerDay)}
+                        className="flex items-center gap-1 p-1"
+                      >
+                        <div className="flex gap-0.5">
+                          <div
+                            className={`h-1.5 w-1.5 rounded-full border ${
+                              !showDistancePerDay
+                                ? "bg-primary border-primary"
+                                : "bg-background border-muted-foreground"
+                            }`}
+                          />
+                          <div
+                            className={`h-1.5 w-1.5 rounded-full border ${
+                              showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                            }`}
+                          />
+                        </div>
+                      </button>
+                      <Popover
+                        open={openPopover === `distance-${entry.id}`}
+                        onOpenChange={(open) => setOpenPopover(open ? `distance-${entry.id}` : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                            <Info className="h-3.5 w-3.5" />
+                            <span className="sr-only">Distance formula</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto text-sm" align="end">
+                          <div className="space-y-1">
+                            <p className="font-semibold">Distance:</p>
+                            <p>Current ODO - Previous ODO</p>
+                            {showDistancePerDay && (
+                              <>
+                                <p className="font-semibold mt-2">Distance per day:</p>
+                                <p>Distance / Days since refuel</p>
+                              </>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </dt>
                   <dd className="text-right font-medium">
                     {showDistancePerDay
                       ? calculated.distancePerDay > 0
@@ -627,14 +644,14 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                     <>
                       {calculated.evDistancePerDay > 0 && (
                         <>
-                          <dt className="text-muted-foreground pl-4">EV</dt>
-                          <dd className="text-right">{calculated.evDistancePerDay.toFixed(1)} km/d</dd>
+                          <dt className="text-muted-foreground pl-4 align-top">EV</dt>
+                          <dd className="text-right align-top">{calculated.evDistancePerDay.toFixed(1)} km/d</dd>
                         </>
                       )}
                       {calculated.hevDistancePerDay > 0 && (
                         <>
-                          <dt className="text-muted-foreground pl-4">HEV</dt>
-                          <dd className="text-right">{calculated.hevDistancePerDay.toFixed(1)} km/d</dd>
+                          <dt className="text-muted-foreground pl-4 align-top">HEV</dt>
+                          <dd className="text-right align-top">{calculated.hevDistancePerDay.toFixed(1)} km/d</dd>
                         </>
                       )}
                     </>
@@ -642,90 +659,152 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                     <>
                       {calculated.evDistance > 0 && (
                         <>
-                          <dt className="text-muted-foreground pl-4">EV</dt>
-                          <dd className="text-right">{calculated.evDistance.toFixed(1)} km</dd>
+                          <dt className="text-muted-foreground pl-4 align-top">EV</dt>
+                          <dd className="text-right align-top">{calculated.evDistance.toFixed(1)} km</dd>
                         </>
                       )}
                       {calculated.hevDistance > 0 && (
                         <>
-                          <dt className="text-muted-foreground pl-4">HEV</dt>
-                          <dd className="text-right">{calculated.hevDistance.toFixed(1)} km</dd>
+                          <dt className="text-muted-foreground pl-4 align-top">HEV</dt>
+                          <dd className="text-right align-top">{calculated.hevDistance.toFixed(1)} km</dd>
                         </>
                       )}
                     </>
                   )}
 
-                  <div className="text-muted-foreground">ODO</div>
-                  <div className="text-right font-medium flex items-center justify-end gap-1">
+                  <dt className="text-muted-foreground align-top">ODO</dt>
+                  <dd className="text-right font-medium flex items-center justify-end gap-1 align-top">
                     <Gauge className="h-3 w-3 text-orange-500" />
                     {entry.odo.toFixed(1)} km
-                  </div>
+                  </dd>
 
                   {entry.evOdo && (
                     <>
-                      <div className="text-muted-foreground">EV ODO</div>
-                      <div className="text-right">{entry.evOdo.toFixed(1)} km</div>
+                      <dt className="text-muted-foreground align-top">EV ODO</dt>
+                      <dd className="text-right align-top">{entry.evOdo.toFixed(1)} km</dd>
                     </>
                   )}
 
                   {entry.hevOdo && (
                     <>
-                      <div className="text-muted-foreground">HEV ODO</div>
-                      <div className="text-right">{entry.hevOdo.toFixed(1)} km</div>
+                      <dt className="text-muted-foreground align-top">HEV ODO</dt>
+                      <dd className="text-right align-top">{entry.hevOdo.toFixed(1)} km</dd>
                     </>
                   )}
 
-                  <div className="text-muted-foreground">Fuel</div>
-                  <div className="text-right">{entry.fuelAmount.toFixed(2)} L</div>
+                  <dt className="text-muted-foreground align-top">Fuel</dt>
+                  <dd className="text-right align-top">{entry.fuelAmount.toFixed(2)} L</dd>
 
-                  <div className="text-muted-foreground">Fuel Cost</div>
-                  <div className="text-right">₱{entry.fuelCost.toFixed(2)}</div>
+                  <dt className="text-muted-foreground align-top">Fuel Cost</dt>
+                  <dd className="text-right align-top">₱{entry.fuelCost.toFixed(2)}</dd>
 
                   {calculated.costPerLiter > 0 && (
                     <>
-                      <div className="text-muted-foreground flex items-center gap-1">
+                      <dt className="text-muted-foreground flex items-center gap-1 align-top">
                         <DollarSign className="h-3 w-3" />
                         Cost/L
-                      </div>
-                      <div className="text-right">₱{calculated.costPerLiter.toFixed(2)}</div>
+                      </dt>
+                      <dd className="text-right align-top">₱{calculated.costPerLiter.toFixed(2)}</dd>
                     </>
                   )}
 
-                  <div className="text-muted-foreground flex items-center gap-1">
+                  <dt className="text-muted-foreground flex items-center gap-1 align-top">
                     <Gauge className="h-3 w-3 text-green-500" />
                     Plug-in
-                  </div>
-                  <div className="text-right">{entry.pluginAmount.toFixed(2)} kWh</div>
+                  </dt>
+                  <dd className="text-right align-top">{entry.pluginAmount.toFixed(2)} kWh</dd>
 
                   {calculated.energy > 0 && (
                     <>
-                      <div className="text-muted-foreground">Energy Used</div>
-                      <div className="text-right">{calculated.energy.toFixed(2)} kWh</div>
+                      <dt className="text-muted-foreground align-top">Energy Used</dt>
+                      <dd className="text-right align-top">{calculated.energy.toFixed(2)} kWh</dd>
                     </>
                   )}
 
-                  <div className="text-muted-foreground flex items-center gap-1">
+                  <dt className="text-muted-foreground flex items-center gap-1 align-top">
                     <DollarSign className="h-3 w-3" />
                     Tariff
-                  </div>
-                  <div className="text-right">₱{entry.energyTariff.toFixed(2)}/kWh</div>
+                  </dt>
+                  <dd className="text-right align-top">₱{entry.energyTariff.toFixed(2)}/kWh</dd>
 
                   {calculated.energyCost > 0 && (
                     <>
-                      <div className="text-muted-foreground flex items-center gap-1">
+                      <dt className="text-muted-foreground flex items-center gap-1 align-top">
                         <Zap className="h-3 w-3" />
                         Energy Cost
-                      </div>
-                      <div className="text-right">₱{calculated.energyCost.toFixed(2)}</div>
+                      </dt>
+                      <dd className="text-right align-top">₱{calculated.energyCost.toFixed(2)}</dd>
                     </>
                   )}
 
-                  <div className="text-muted-foreground font-medium">Total Cost</div>
-                  <div className="text-right font-medium">₱{calculated.totalCost.toFixed(2)}</div>
+                  <dt className="text-muted-foreground font-medium align-top">Total Cost</dt>
+                  <dd className="text-right font-medium align-top">₱{calculated.totalCost.toFixed(2)}</dd>
 
-                  <span className="text-muted-foreground">Cost</span>
+                  <dt className="text-muted-foreground flex items-start justify-between">
+                    <span>Cost</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          if (costView === "total") setCostView("perKm")
+                          else if (costView === "perKm") setCostView("perDay")
+                          else setCostView("total")
+                        }}
+                        className="flex items-center gap-1 p-1"
+                      >
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full border ${
+                            costView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full border ${
+                            costView === "perKm" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full border ${
+                            costView === "perDay"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                      </button>
+                      <Popover
+                        open={openPopover === `cost-${entry.id}`}
+                        onOpenChange={(open) => setOpenPopover(open ? `cost-${entry.id}` : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                            <Info className="h-3.5 w-3.5" />
+                            <span className="sr-only">Cost formula</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto text-sm" align="end">
+                          <div className="space-y-1.5">
+                            <p className="font-semibold">Cost Metrics:</p>
+                            <div>
+                              <p className="text-xs font-medium">Total Cost:</p>
+                              <p>Fuel Cost + Energy Cost</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium">Cost per Kilometer (₱/km):</p>
+                              <p className="text-xs">Combined: Total Cost ÷ Distance</p>
+                              <p className="text-xs">EV: Energy Cost ÷ EV Distance</p>
+                              <p className="text-xs">HEV: Fuel Cost ÷ HEV Distance</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium">Cost per Day (₱/day):</p>
+                              <p className="text-xs">Combined: Total Cost ÷ Days</p>
+                              <p className="text-xs">EV: Energy Cost ÷ Days</p>
+                              <p className="text-xs">HEV: Fuel Cost ÷ Days</p>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </dt>
                   {costView === "total" ? (
-                    <div className="text-right">
+                    <dd className="text-right align-top">
                       <p>₱{calculated.totalCost.toFixed(2)}</p>
                       {calculated.energyCost > 0 && (
                         <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
@@ -737,119 +816,150 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                         <Fuel className="h-3 w-3" />
                         {entry.fuelCost.toFixed(2)}
                       </p>
-                    </div>
+                    </dd>
                   ) : costView === "perKm" ? (
-                    <div className="text-right">
+                    <dd className="text-right align-top">
                       <p>₱{calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km</p>
                       {calculated.evCostPerKm > 0 && (
-                        <p className="text-sm text-muted-foreground">EV {calculated.evCostPerKm.toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">EV: ₱{calculated.evCostPerKm.toFixed(2)}/km</p>
                       )}
                       {calculated.hevCostPerKm > 0 && (
-                        <p className="text-sm text-muted-foreground">HEV {calculated.hevCostPerKm.toFixed(2)}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-right">
-                      <p>₱{calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day</p>
-                      {calculated.evCostPerDay > 0 && (
-                        <p className="text-sm text-muted-foreground">EV {calculated.evCostPerDay.toFixed(2)}</p>
-                      )}
-                      {calculated.hevCostPerDay > 0 && (
-                        <p className="text-sm text-muted-foreground">HEV {calculated.hevCostPerDay.toFixed(2)}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {calculated.costPerDay > 0 && (
-                    <>
-                      <div className="text-muted-foreground">Cost/Day</div>
-                      <div className="text-right">₱{calculated.costPerDay.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.evCostPerDay > 0 && (
-                    <>
-                      <div className="text-muted-foreground">EV Cost/Day</div>
-                      <div className="text-right">₱{calculated.evCostPerDay.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.hevCostPerDay > 0 && (
-                    <>
-                      <div className="text-muted-foreground">HEV Cost/Day</div>
-                      <div className="text-right">₱{calculated.hevCostPerDay.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.costPerKm > 0 && (
-                    <>
-                      <div className="text-muted-foreground">Cost/km</div>
-                      <div className="text-right">₱{calculated.costPerKm.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.evCostPerKm > 0 && (
-                    <>
-                      <div className="text-muted-foreground">EV Cost/km</div>
-                      <div className="text-right">₱{calculated.evCostPerKm.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.hevCostPerKm > 0 && (
-                    <>
-                      <div className="text-muted-foreground">HEV Cost/km</div>
-                      <div className="text-right">₱{calculated.hevCostPerKm.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  <div className="col-span-2">
-                    <dt className="text-sm font-medium text-muted-foreground">Efficiency</dt>
-                    <dd className="text-sm">
-                      {efficiencyUnit === "kmPer" ? (
-                        <>
-                          {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
-                          {calculated.evWhPerKm > 0 && (
-                            <span className="text-muted-foreground"> • EV {calculated.evWhPerKm.toFixed(0)} Wh/km</span>
-                          )}
-                          {calculated.evEquivalentKmPerLiter > 0 && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
-                            </span>
-                          )}
-                          {calculated.hevKmPerLiter > 0 && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
-                          {calculated.evKwhPer100km > 0 && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
-                            </span>
-                          )}
-                          {calculated.evEquivalentLitersPer100km > 0 && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
-                            </span>
-                          )}
-                          {calculated.hevLitersPer100km > 0 && (
-                            <span className="text-muted-foreground">
-                              {" "}
-                              • HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
-                            </span>
-                          )}
-                        </>
+                        <p className="text-sm text-muted-foreground">HEV: ₱{calculated.hevCostPerKm.toFixed(2)}/km</p>
                       )}
                     </dd>
-                  </div>
-                </div>
+                  ) : (
+                    <dd className="text-right align-top">
+                      <p>₱{calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day</p>
+                      {calculated.evCostPerDay > 0 && (
+                        <p className="text-sm text-muted-foreground">EV: ₱{calculated.evCostPerDay.toFixed(2)}/day</p>
+                      )}
+                      {calculated.hevCostPerDay > 0 && (
+                        <p className="text-sm text-muted-foreground">HEV: ₱{calculated.hevCostPerDay.toFixed(2)}/day</p>
+                      )}
+                    </dd>
+                  )}
+
+                  <dt className="text-muted-foreground flex items-start justify-between">
+                    <span>Efficiency</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+                        className="flex items-center gap-1.5 hover:opacity-70 transition-opacity p-1"
+                      >
+                        <div className="flex gap-0.5">
+                          <div
+                            className={`h-1.5 w-1.5 rounded-full border ${
+                              efficiencyUnit === "kmPer"
+                                ? "bg-primary border-primary"
+                                : "bg-background border-muted-foreground"
+                            }`}
+                          />
+                          <div
+                            className={`h-1.5 w-1.5 rounded-full border ${
+                              efficiencyUnit === "per100"
+                                ? "bg-primary border-primary"
+                                : "bg-background border-muted-foreground"
+                            }`}
+                          />
+                        </div>
+                      </button>
+                      <Popover
+                        open={openPopover === `efficiency-${entry.id}`}
+                        onOpenChange={(open) => setOpenPopover(open ? `efficiency-${entry.id}` : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                            <Info className="h-3.5 w-3.5" />
+                            <span className="sr-only">Efficiency formula</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto text-sm" align="end">
+                          <div className="space-y-1.5">
+                            <p className="font-semibold">Efficiency Metrics:</p>
+                            {efficiencyUnit === "kmPer" ? (
+                              <>
+                                <div>
+                                  <p className="text-xs font-medium">Combined km/L:</p>
+                                  <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV Wh/km:</p>
+                                  <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV as km/L*:</p>
+                                  <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">HEV km/L:</p>
+                                  <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <p className="text-xs font-medium">Combined L/100km:</p>
+                                  <p className="text-xs">100 ÷ Combined km/L</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV kWh/100km:</p>
+                                  <p className="text-xs">Energy × 100 ÷ EV Distance</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV as L/100km*:</p>
+                                  <p className="text-xs">100 ÷ EV km/L*</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">HEV L/100km:</p>
+                                  <p className="text-xs">100 ÷ HEV km/L</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </dt>
+                  <dd className="text-sm space-y-1 col-span-2 align-top">
+                    {efficiencyUnit === "kmPer" ? (
+                      <>
+                        <div>{calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}</div>
+                        {calculated.evWhPerKm > 0 && (
+                          <div className="text-muted-foreground">EV {calculated.evWhPerKm.toFixed(0)} Wh/km</div>
+                        )}
+                        {calculated.evEquivalentKmPerLiter > 0 && (
+                          <div className="text-muted-foreground">
+                            EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
+                          </div>
+                        )}
+                        {calculated.hevKmPerLiter > 0 && (
+                          <div className="text-muted-foreground">HEV {calculated.hevKmPerLiter.toFixed(2)} km/L</div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
+                        </div>
+                        {calculated.evKwhPer100km > 0 && (
+                          <div className="text-muted-foreground">
+                            EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
+                          </div>
+                        )}
+                        {calculated.evEquivalentLitersPer100km > 0 && (
+                          <div className="text-muted-foreground">
+                            EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
+                          </div>
+                        )}
+                        {calculated.hevLitersPer100km > 0 && (
+                          <div className="text-muted-foreground">
+                            HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </dd>
+                </dl>
               </CardContent>
             </Card>
           )
