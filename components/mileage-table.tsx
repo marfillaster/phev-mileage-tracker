@@ -10,7 +10,7 @@ import type { MileageEntry } from "@/app/page"
 
 interface MileageTableProps {
   entries: MileageEntry[]
-  onUpdate: (id: string, entry: Partial<MileageEntry>) => void
+  onUpdate: (entry: MileageEntry) => void // Fixed signature to match parent component
   onDelete: (id: string) => void
   currencySymbol: string
 }
@@ -625,12 +625,7 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onUpdate(entry.id, entry)}
-                          className="h-8 w-8"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => onUpdate(entry)} className="h-8 w-8">
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">Edit entry</span>
                         </Button>
@@ -671,7 +666,7 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                     )}
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onUpdate(entry.id, entry)} className="h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={() => onUpdate(entry)} className="h-8 w-8">
                       <Pencil className="h-4 w-4" />
                       <span className="sr-only">Edit entry</span>
                     </Button>
