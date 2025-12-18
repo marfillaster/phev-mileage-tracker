@@ -18,6 +18,8 @@ export default function OverviewPage() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
   const [openPopover, setOpenPopover] = useState<string | null>(null)
+  const [evEfficiency, setEvEfficiency] = useState<number>(0) // Declare evEfficiency
+  const [hevFuelEfficiency, setHevFuelEfficiency] = useState<number>(0) // Declare hevFuelEfficiency
 
   useEffect(() => {
     const stored = localStorage.getItem("phev-mileage-entries")
@@ -40,49 +42,46 @@ export default function OverviewPage() {
 
   const availableYears = getAvailableYears()
 
-  const getFilteredEntries = () => {
-    const now = new Date()
-    const cutoffDate = new Date()
+  const calculateMetrics = (entries: MileageEntry[]) => {
+    console.log("[v0] calculateMetrics called with entries:", entries.length)
 
-    if (timeRange === "year") {
-      return entries
-        .filter((entry) => new Date(entry.date).getFullYear() === selectedYear)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    } else {
-      cutoffDate.setMonth(now.getMonth() - 6)
-      return entries
-        .filter((entry) => new Date(entry.date) >= cutoffDate)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    }
-  }
+    const sorted = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-  const calculateMetrics = () => {
-    const filtered = getFilteredEntries()
+    const filtered =
+      timeRange === "year"
+        ? sorted.filter((entry) => {
+            const entryYear = new Date(entry.date).getFullYear()
+            return entryYear === selectedYear
+          })
+        : sorted.filter((entry) => {
+            const entryDate = new Date(entry.date)
+            const sixMonthsAgo = new Date()
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+            return entryDate >= sixMonthsAgo
+          })
 
-    if (filtered.length < 2) {
-      return null
-    }
+    console.log("[v0] After time range filter:", filtered.length)
+
+    if (filtered.length < 2) return null
 
     let truncatedEntries = [...filtered]
 
-    // Find the latest (most recent) entry without HEV or EV ODO data
-    let latestMissingDataIndex = -1
+    let oldestCompleteDataIndex = -1
     for (let i = truncatedEntries.length - 1; i >= 0; i--) {
-      if (!truncatedEntries[i].hevOdo && !truncatedEntries[i].evOdo) {
-        latestMissingDataIndex = i
-        break
+      if (truncatedEntries[i].hevOdo && truncatedEntries[i].evOdo) {
+        oldestCompleteDataIndex = i
       }
     }
 
-    // If found, truncate all entries up to and including that entry
-    if (latestMissingDataIndex >= 0) {
-      truncatedEntries = truncatedEntries.slice(latestMissingDataIndex + 1)
+    console.log("[v0] Oldest complete data index:", oldestCompleteDataIndex)
+
+    if (oldestCompleteDataIndex > 0) {
+      truncatedEntries = truncatedEntries.slice(0, oldestCompleteDataIndex + 1)
     }
 
-    // Need at least 2 entries after truncation for calculations
-    if (truncatedEntries.length < 2) {
-      return null
-    }
+    console.log("[v0] After truncation:", truncatedEntries.length)
+
+    if (truncatedEntries.length < 2) return null
 
     let totalDistance = 0
     let totalHevDistance = 0
@@ -95,13 +94,18 @@ export default function OverviewPage() {
 
     let hevFuelAmount = 0
     let evEnergy = 0
+    let completeEntryCount = 0
 
-    for (let i = 1; i < truncatedEntries.length; i++) {
-      const current = truncatedEntries[i]
-      const previous = truncatedEntries[i - 1]
+    for (let i = truncatedEntries.length - 1; i > 0; i--) {
+      const current = truncatedEntries[i - 1]
+      const previous = truncatedEntries[i]
 
       const distance = current.odo - previous.odo
       totalDistance += distance
+
+      if (current.hevOdo && current.evOdo) {
+        completeEntryCount++
+      }
 
       if (current.hevOdo && previous.hevOdo) {
         const hevDistance = current.hevOdo - previous.hevOdo
@@ -124,31 +128,43 @@ export default function OverviewPage() {
       totalEnergy += energy
       totalEnergyCost += energy * current.energyTariff
 
-      const daysDiff = (new Date(current.date).getTime() - new Date(previous.date).getTime()) / (1000 * 60 * 60 * 24)
-      totalDays += daysDiff
+      // Only count days if both entries have complete HEV and EV ODO data
+      if (current.hevOdo && current.evOdo && previous.hevOdo && previous.evOdo) {
+        const daysDiff = (new Date(current.date).getTime() - new Date(previous.date).getTime()) / (1000 * 60 * 60 * 24)
+        totalDays += daysDiff
+        console.log("[v0] Adding days:", daysDiff, "from", previous.date, "to", current.date)
+      }
     }
+
+    console.log("[v0] Total days calculated:", totalDays)
+    console.log("[v0] Complete entry count:", completeEntryCount)
 
     const totalCost = totalFuelCost + totalEnergyCost
     const costPerKm = totalDistance > 0 ? totalCost / totalDistance : 0
-    const evCostPerKm =
-      totalEvDistance > 0 && evEnergy > 0 ? (evEnergy * (totalEnergyCost / totalEnergy)) / totalEvDistance : 0
-    const hevCostPerKm =
-      totalHevDistance > 0 && hevFuelAmount > 0
-        ? (hevFuelAmount * (totalFuelCost / totalFuelAmount)) / totalHevDistance
+    const evCostPerKm = totalEvDistance > 0 ? totalEnergyCost / totalEvDistance : 0
+    const hevCostPerKm = totalHevDistance > 0 ? totalFuelCost / totalHevDistance : 0
+
+    const latestEntry = truncatedEntries[0]
+    const costPerLiter = latestEntry.fuelAmount > 0 ? latestEntry.fuelCost / latestEntry.fuelAmount : 0
+
+    const hevFuelEfficiency = totalHevDistance > 0 && hevFuelAmount > 0 ? totalHevDistance / hevFuelAmount : 0
+    const evEfficiency = totalEvDistance > 0 && evEnergy > 0 ? totalEvDistance / evEnergy : 0
+
+    // Combined efficiency: account for both fuel and energy cost converted to fuel equivalent
+    const energyCostAsLiters = costPerLiter > 0 ? totalEnergyCost / costPerLiter : 0
+    const combinedKmPerLiter =
+      totalFuelAmount + energyCostAsLiters > 0 ? totalDistance / (totalFuelAmount + energyCostAsLiters) : 0
+
+    // EV equivalent: what would efficiency be if energy cost was spent on fuel
+    const evEquivalentKmPerLiter =
+      evEfficiency > 0 && costPerLiter > 0 && latestEntry.energyTariff > 0
+        ? evEfficiency * (costPerLiter / latestEntry.energyTariff)
         : 0
-    const fuelEfficiency = totalFuelAmount > 0 ? totalDistance / totalFuelAmount : 0
-    const hevFuelEfficiency = hevFuelAmount > 0 && totalHevDistance > 0 ? totalHevDistance / hevFuelAmount : 0
-    const evEfficiency = evEnergy > 0 && totalEvDistance > 0 ? totalEvDistance / evEnergy : 0
-    const avgDistancePerDay = totalDays > 0 ? totalDistance / totalDays : 0
-    const avgCostPerDay = totalDays > 0 ? totalCost / totalDays : 0
 
-    const combinedKmPerLiter = fuelEfficiency
-    const evEquivalentKmPerLiter = evEfficiency * filtered[filtered.length - 1].energyTariff
-
+    const evWhPerKm = totalEvDistance > 0 && evEnergy > 0 ? (evEnergy * 1000) / totalEvDistance : 0
     const litersPer100km = combinedKmPerLiter > 0 ? 100 / combinedKmPerLiter : 0
     const hevLitersPer100km = hevFuelEfficiency > 0 ? 100 / hevFuelEfficiency : 0
-    const evKwhPer100km = evEfficiency > 0 ? 100 / evEfficiency : 0
-    const evWhPerKm = evEfficiency > 0 ? 1000 / evEfficiency : 0
+    const evKwhPer100km = totalEvDistance > 0 && evEnergy > 0 ? (evEnergy * 100) / totalEvDistance : 0
     const evEquivalentLitersPer100km = evEquivalentKmPerLiter > 0 ? 100 / evEquivalentKmPerLiter : 0
 
     return {
@@ -163,17 +179,17 @@ export default function OverviewPage() {
       costPerKm,
       evCostPerKm,
       hevCostPerKm,
-      fuelEfficiency,
-      hevFuelEfficiency,
-      evEfficiency,
       combinedKmPerLiter,
       evEquivalentKmPerLiter,
-      avgDistancePerDay,
-      avgCostPerDay,
+      avgDistancePerDay: totalDays > 0 ? totalDistance / totalDays : 0,
+      avgCostPerDay: totalDays > 0 ? totalCost / totalDays : 0,
       totalDays,
       entryCount: truncatedEntries.length,
+      completeEntryCount,
       hevFuelAmount,
       evEnergy,
+      hevFuelEfficiency,
+      evEfficiency,
       litersPer100km,
       hevLitersPer100km,
       evKwhPer100km,
@@ -182,7 +198,7 @@ export default function OverviewPage() {
     }
   }
 
-  const metrics = calculateMetrics()
+  const metrics = calculateMetrics(entries)
 
   if (entries.length < 3) {
     return (
@@ -548,7 +564,7 @@ export default function OverviewPage() {
                       <span className="text-xs">HEV Fuel</span>
                     </div>
                     <div className="text-lg font-bold">
-                      {metrics.hevFuelEfficiency > 0
+                      {metrics.totalHevDistance > 0 && metrics.hevFuelAmount > 0
                         ? efficiencyUnit === "kmPer"
                           ? `${metrics.hevFuelEfficiency.toFixed(2)} km/L`
                           : `${metrics.hevLitersPer100km.toFixed(2)} L/100km`
@@ -563,7 +579,7 @@ export default function OverviewPage() {
                       <span className="text-xs">EV Energy</span>
                     </div>
                     <div className="text-lg font-bold">
-                      {metrics.evEfficiency > 0
+                      {metrics.totalEvDistance > 0 && metrics.evEnergy > 0
                         ? efficiencyUnit === "kmPer"
                           ? `${metrics.evWhPerKm.toFixed(0)} Wh/km`
                           : `${metrics.evKwhPer100km.toFixed(2)} kWh/100km`
@@ -572,20 +588,18 @@ export default function OverviewPage() {
                     <p className="text-xs text-muted-foreground">{metrics.evEnergy.toFixed(1)} kWh consumed</p>
                   </div>
 
-                  {metrics.evEquivalentKmPerLiter > 0 && (
-                    <div>
-                      <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                        <Zap className="h-3 w-3" />
-                        <span className="text-xs">EV as {efficiencyUnit === "kmPer" ? "km/L" : "L/100km"}</span>
-                      </div>
-                      <div className="text-lg font-bold">
-                        {efficiencyUnit === "kmPer"
-                          ? `${metrics.evEquivalentKmPerLiter.toFixed(2)} km/L*`
-                          : `${metrics.evEquivalentLitersPer100km.toFixed(2)} L/100km*`}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Cost-equivalent efficiency</p>
+                  <div>
+                    <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                      <Zap className="h-3 w-3" />
+                      <span className="text-xs">EV as {efficiencyUnit === "kmPer" ? "km/L*" : "L/100km*"}</span>
                     </div>
-                  )}
+                    <div className="text-lg font-bold">
+                      {efficiencyUnit === "kmPer"
+                        ? `${metrics.evEquivalentKmPerLiter.toFixed(2)} km/L`
+                        : `${metrics.evEquivalentLitersPer100km.toFixed(2)} L/100km`}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Cost-equivalent efficiency</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -597,7 +611,9 @@ export default function OverviewPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{Math.round(metrics.totalDays)} days</div>
-                <p className="text-xs text-muted-foreground mt-1">Based on {metrics.entryCount} entries</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Based on {metrics.completeEntryCount} complete entries
+                </p>
               </CardContent>
             </Card>
           </div>

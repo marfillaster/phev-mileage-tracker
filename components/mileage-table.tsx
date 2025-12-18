@@ -14,12 +14,13 @@ interface MileageTableProps {
   onEdit: (entry: MileageEntry) => void
 }
 
-export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
+export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [openPopover, setOpenPopover] = useState<string | null>(null)
   const [showDistancePerDay, setShowDistancePerDay] = useState(false)
   const [costView, setCostView] = useState<"total" | "perKm" | "perDay">("total")
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
+  const [energyView, setEnergyView] = useState<"total" | "perDay">("total")
 
   const sortedEntries = useMemo(() => {
     return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -56,6 +57,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
         evKwhPer100km: 0,
         hevLitersPer100km: 0,
         evEquivalentLitersPer100km: 0,
+        daysSince: 0,
       }
     }
 
@@ -128,6 +130,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
       evKwhPer100km,
       hevLitersPer100km,
       evEquivalentLitersPer100km,
+      daysSince: daysSinceRefuel,
     }
   }
 
@@ -144,14 +147,19 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   className="text-right cursor-pointer select-none"
                   onClick={() => setShowDistancePerDay(!showDistancePerDay)}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-end gap-2">
                     {showDistancePerDay ? "Distance/Day (km/day)" : "Distance (km)"}
                     <Popover
                       open={openPopover === "distance"}
                       onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Info className="h-3.5 w-3.5" />
                           <span className="sr-only">Distance formula</span>
                         </Button>
@@ -181,14 +189,23 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                 </TableHead>
                 <TableHead className="text-right">Fuel (L)</TableHead>
                 <TableHead className="text-right">
-                  <div className="flex items-center justify-end gap-1">
+                  <div
+                    className="flex items-center justify-end gap-2"
+                    onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
+                  >
                     Energy
+                    {energyView === "perDay" && "/Day"}
                     <Popover
                       open={openPopover === "energy"}
                       onOpenChange={(open) => setOpenPopover(open ? "energy" : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Info className="h-3.5 w-3.5" />
                           <span className="sr-only">Energy formula</span>
                         </Button>
@@ -202,10 +219,10 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                     </Popover>
                     <div className="flex gap-1">
                       <div
-                        className={`h-1.5 w-1.5 rounded-full border ${!showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                        className={`h-1.5 w-1.5 rounded-full border ${energyView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
                       />
                       <div
-                        className={`h-1.5 w-1.5 rounded-full border ${showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                        className={`h-1.5 w-1.5 rounded-full border ${energyView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
                       />
                     </div>
                   </div>
@@ -226,7 +243,12 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                       onOpenChange={(open) => setOpenPopover(open ? "cost" : null)}
                     >
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <Info className="h-3.5 w-3.5" />
                           <span className="sr-only">Cost formula</span>
                         </Button>
@@ -270,9 +292,69 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   <div className="flex items-center justify-end gap-2">
                     <button
                       onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
-                      className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+                      className="flex items-center gap-2 hover:opacity-70 transition-opacity"
                     >
                       Efficiency
+                      <Popover
+                        open={openPopover === "efficiency"}
+                        onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                            <span className="sr-only">Efficiency formula</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto text-sm" align="end">
+                          <div className="space-y-1.5">
+                            <p className="font-semibold">Efficiency Metrics:</p>
+                            {efficiencyUnit === "kmPer" ? (
+                              <>
+                                <div>
+                                  <p className="text-xs font-medium">Combined km/L:</p>
+                                  <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV Wh/km:</p>
+                                  <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV as km/L*:</p>
+                                  <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">HEV km/L:</p>
+                                  <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div>
+                                  <p className="text-xs font-medium">Combined L/100km:</p>
+                                  <p className="text-xs">100 ÷ Combined km/L</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV kWh/100km:</p>
+                                  <p className="text-xs">Energy × 100 ÷ EV Distance</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">EV as L/100km*:</p>
+                                  <p className="text-xs">100 ÷ EV km/L*</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-medium">HEV L/100km:</p>
+                                  <p className="text-xs">100 ÷ HEV km/L</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       <div className="flex gap-0.5">
                         <div
                           className={`h-1.5 w-1.5 rounded-full border ${
@@ -290,61 +372,6 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                         />
                       </div>
                     </button>
-                    <Popover
-                      open={openPopover === "efficiency"}
-                      onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                          <Info className="h-3.5 w-3.5" />
-                          <span className="sr-only">Efficiency formula</span>
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto text-sm" align="end">
-                        <div className="space-y-1.5">
-                          <p className="font-semibold">Efficiency Metrics:</p>
-                          {efficiencyUnit === "kmPer" ? (
-                            <>
-                              <div>
-                                <p className="text-xs font-medium">Combined km/L:</p>
-                                <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium">EV Wh/km:</p>
-                                <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium">EV as km/L*:</p>
-                                <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium">HEV km/L:</p>
-                                <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div>
-                                <p className="text-xs font-medium">Combined L/100km:</p>
-                                <p className="text-xs">100 ÷ Combined km/L</p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium">EV kWh/100km:</p>
-                                <p className="text-xs">Energy × 100 ÷ EV Distance</p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium">EV as L/100km*:</p>
-                                <p className="text-xs">100 ÷ EV km/L*</p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-medium">HEV L/100km:</p>
-                                <p className="text-xs">100 ÷ HEV km/L</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
                   </div>
                 </TableHead>
                 <TableHead className="w-[100px]"></TableHead>
@@ -429,18 +456,41 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                       )}
                     </TableCell>
                     <TableCell className="align-top">
-                      <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                        <Gauge className="h-3 w-3 text-green-500" />
-                        {entry.pluginAmount.toFixed(2)} kWh
-                      </p>
-                      <p className="text-sm text-right">
-                        {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
-                      </p>
-                      {calculated.energy > 0 && (
-                        <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          {entry.energyTariff.toFixed(2)}/kWh
-                        </p>
+                      {energyView === "total" ? (
+                        <>
+                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
+                            <Gauge className="h-3 w-3 text-green-500" />
+                            {entry.pluginAmount.toFixed(2)} kWh
+                          </p>
+                          <p className="text-sm text-right">
+                            {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
+                          </p>
+                          {calculated.energy > 0 && (
+                            <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {entry.energyTariff.toFixed(2)}/kWh
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
+                            <Gauge className="h-3 w-3 text-green-500" />
+                            {calculated.daysSince > 0 ? (entry.pluginAmount / calculated.daysSince).toFixed(2) : "-"}{" "}
+                            kWh/day
+                          </p>
+                          <p className="text-sm text-right">
+                            {calculated.energy > 0 && calculated.daysSince > 0
+                              ? `${(calculated.energy / calculated.daysSince).toFixed(2)} kWh/day`
+                              : "-"}
+                          </p>
+                          {calculated.energy > 0 && (
+                            <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {entry.energyTariff.toFixed(2)}/kWh
+                            </p>
+                          )}
+                        </>
                       )}
                     </TableCell>
                     <TableCell className="align-top">
@@ -608,9 +658,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                             }`}
                           />
                           <div
-                            className={`h-1.5 w-1.5 rounded-full border ${
-                              showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"
-                            }`}
+                            className={`h-1.5 w-1.5 rounded-full border ${showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
                           />
                         </div>
                       </button>
@@ -722,12 +770,10 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   </dt>
                   <dd className="text-right align-top">{entry.pluginAmount.toFixed(2)} kWh</dd>
 
-                  {calculated.energy > 0 && (
-                    <>
-                      <dt className="text-muted-foreground align-top">Energy Used</dt>
-                      <dd className="text-right align-top">{calculated.energy.toFixed(2)} kWh</dd>
-                    </>
-                  )}
+                  <dt className="text-muted-foreground align-top">Energy Used</dt>
+                  <dd className="text-right align-top">
+                    {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
+                  </dd>
 
                   <dt className="text-muted-foreground flex items-center gap-1 align-top">
                     <DollarSign className="h-3 w-3" />
@@ -846,6 +892,76 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                       )}
                     </dd>
                   )}
+
+                  <dt className="text-muted-foreground flex items-start justify-between col-span-1">
+                    <span>Energy</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
+                        className="flex items-center gap-1 p-1"
+                      >
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full border ${
+                            energyView === "total"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full border ${
+                            energyView === "perDay"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                      </button>
+                      <Popover
+                        open={openPopover === `energy-${entry.id}`}
+                        onOpenChange={(open) => setOpenPopover(open ? `energy-${entry.id}` : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                            <Info className="h-3.5 w-3.5" />
+                            <span className="sr-only">Energy formula</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto text-sm" align="end">
+                          <div className="space-y-1">
+                            <p className="font-semibold">Energy Consumed:</p>
+                            <p>Current Plug-in - Previous Plug-in</p>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </dt>
+                  <dd className="text-right align-top col-span-1">
+                    {energyView === "total" ? (
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
+                          <Gauge className="h-3 w-3 text-green-500" />
+                          {entry.pluginAmount.toFixed(2)} kWh
+                        </p>
+                        {calculated.energy > 0 && <p className="text-sm">{calculated.energy.toFixed(2)} kWh</p>}
+                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
+                          <DollarSign className="h-3 w-3" />₱{entry.energyTariff.toFixed(2)}/kWh
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
+                          <Gauge className="h-3 w-3 text-green-500" />
+                          {calculated.daysSince > 0 ? (entry.pluginAmount / calculated.daysSince).toFixed(2) : "-"}{" "}
+                          kWh/day
+                        </p>
+                        {calculated.energy > 0 && calculated.daysSince > 0 && (
+                          <p className="text-sm">{(calculated.energy / calculated.daysSince).toFixed(2)} kWh/day</p>
+                        )}
+                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
+                          <DollarSign className="h-3 w-3" />₱{entry.energyTariff.toFixed(2)}/kWh
+                        </p>
+                      </div>
+                    )}
+                  </dd>
 
                   <dt className="text-muted-foreground flex items-start justify-between col-span-1">
                     <span>Efficiency</span>
@@ -1011,6 +1127,7 @@ export function generateCSV(entries: MileageEntry[]): string {
         evKwhPer100km: 0,
         hevLitersPer100km: 0,
         evEquivalentLitersPer100km: 0,
+        daysSince: 0,
       }
     }
 
@@ -1082,6 +1199,7 @@ export function generateCSV(entries: MileageEntry[]): string {
       evKwhPer100km,
       hevLitersPer100km,
       evEquivalentLitersPer100km,
+      daysSince: daysSinceRefuel,
     }
   }
 
@@ -1119,6 +1237,8 @@ export function generateCSV(entries: MileageEntry[]): string {
     "Distance/day (km/d)",
     "EV Distance/day (km/d)",
     "HEV Distance/day (km/d)",
+    "Energy Used/day (kWh/day)",
+    "Total Cost/day (₱/day)",
   ]
 
   const rows = sortedEntries.map((entry, index) => {
@@ -1159,6 +1279,8 @@ export function generateCSV(entries: MileageEntry[]): string {
       calc.distancePerDay > 0 ? calc.distancePerDay.toFixed(1) : "",
       calc.evDistancePerDay > 0 ? calc.evDistancePerDay.toFixed(1) : "",
       calc.hevDistancePerDay > 0 ? calc.hevDistancePerDay.toFixed(1) : "",
+      calc.daysSince > 0 ? (entry.pluginAmount / calc.daysSince).toFixed(2) : "",
+      calc.daysSince > 0 ? (calc.totalCost / calc.daysSince).toFixed(2) : "",
     ]
   })
 
