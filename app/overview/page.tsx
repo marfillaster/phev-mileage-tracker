@@ -5,9 +5,10 @@ import type { MileageEntry } from "../page"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Footer } from "@/components/footer"
-import { Calendar, Fuel, Zap, DollarSign, Gauge, TrendingUp } from "lucide-react"
+import { Calendar, Fuel, Zap, DollarSign, Gauge, TrendingUp, Info } from "lucide-react"
 import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type TimeRange = "year" | "sixMonths"
 
@@ -16,6 +17,7 @@ export default function OverviewPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("year")
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
+  const [openPopover, setOpenPopover] = useState<string | null>(null)
 
   useEffect(() => {
     const stored = localStorage.getItem("phev-mileage-entries")
@@ -61,6 +63,27 @@ export default function OverviewPage() {
       return null
     }
 
+    let truncatedEntries = [...filtered]
+
+    // Find the latest (most recent) entry without HEV or EV ODO data
+    let latestMissingDataIndex = -1
+    for (let i = truncatedEntries.length - 1; i >= 0; i--) {
+      if (!truncatedEntries[i].hevOdo && !truncatedEntries[i].evOdo) {
+        latestMissingDataIndex = i
+        break
+      }
+    }
+
+    // If found, truncate all entries up to and including that entry
+    if (latestMissingDataIndex >= 0) {
+      truncatedEntries = truncatedEntries.slice(latestMissingDataIndex + 1)
+    }
+
+    // Need at least 2 entries after truncation for calculations
+    if (truncatedEntries.length < 2) {
+      return null
+    }
+
     let totalDistance = 0
     let totalHevDistance = 0
     let totalEvDistance = 0
@@ -73,9 +96,9 @@ export default function OverviewPage() {
     let hevFuelAmount = 0
     let evEnergy = 0
 
-    for (let i = 1; i < filtered.length; i++) {
-      const current = filtered[i]
-      const previous = filtered[i - 1]
+    for (let i = 1; i < truncatedEntries.length; i++) {
+      const current = truncatedEntries[i]
+      const previous = truncatedEntries[i - 1]
 
       const distance = current.odo - previous.odo
       totalDistance += distance
@@ -148,7 +171,7 @@ export default function OverviewPage() {
       avgDistancePerDay,
       avgCostPerDay,
       totalDays,
-      entryCount: filtered.length,
+      entryCount: truncatedEntries.length,
       hevFuelAmount,
       evEnergy,
       litersPer100km,
@@ -305,7 +328,27 @@ export default function OverviewPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Distance</CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <CardTitle className="text-sm font-medium">Total Distance</CardTitle>
+                  <Popover
+                    open={openPopover === "distance"}
+                    onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                        <Info className="h-3.5 w-3.5" />
+                        <span className="sr-only">Distance info</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto text-sm" align="start">
+                      <div className="space-y-1">
+                        <p className="font-semibold">Total Distance:</p>
+                        <p>Sum of all distances between entries</p>
+                        <p className="text-xs">Distance = Current ODO - Previous ODO</p>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <Gauge className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -324,7 +367,26 @@ export default function OverviewPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
+                  <Popover
+                    open={openPopover === "totalCost"}
+                    onOpenChange={(open) => setOpenPopover(open ? "totalCost" : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                        <Info className="h-3.5 w-3.5" />
+                        <span className="sr-only">Total cost info</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto text-sm" align="start">
+                      <div className="space-y-1">
+                        <p className="font-semibold">Total Cost:</p>
+                        <p>Fuel Cost + Energy Cost</p>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -337,7 +399,37 @@ export default function OverviewPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Cost per km</CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <CardTitle className="text-sm font-medium">Cost per km</CardTitle>
+                  <Popover
+                    open={openPopover === "costPerKm"}
+                    onOpenChange={(open) => setOpenPopover(open ? "costPerKm" : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                        <Info className="h-3.5 w-3.5" />
+                        <span className="sr-only">Cost per km info</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto text-sm" align="start">
+                      <div className="space-y-1.5">
+                        <p className="font-semibold">Cost per Kilometer:</p>
+                        <div>
+                          <p className="text-xs font-medium">Combined:</p>
+                          <p className="text-xs">Total Cost ÷ Total Distance</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium">EV:</p>
+                          <p className="text-xs">Energy Cost ÷ EV Distance</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium">HEV:</p>
+                          <p className="text-xs">Fuel Cost ÷ HEV Distance</p>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -354,29 +446,86 @@ export default function OverviewPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  Efficiency & Consumption
-                  <button
-                    onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
-                    className="flex gap-1 ml-2"
-                    type="button"
-                  >
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full border ${
-                        efficiencyUnit === "kmPer"
-                          ? "bg-primary border-primary"
-                          : "bg-background border-muted-foreground"
-                      }`}
-                    />
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full border ${
-                        efficiencyUnit === "per100"
-                          ? "bg-primary border-primary"
-                          : "bg-background border-muted-foreground"
-                      }`}
-                    />
-                  </button>
-                </CardTitle>
+                <div className="flex items-center gap-1.5">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    Efficiency & Consumption
+                    <Popover
+                      open={openPopover === "efficiency"}
+                      onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                          <Info className="h-3.5 w-3.5" />
+                          <span className="sr-only">Efficiency info</span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto text-sm" align="start">
+                        <div className="space-y-1.5">
+                          <p className="font-semibold">Efficiency Metrics:</p>
+                          {efficiencyUnit === "kmPer" ? (
+                            <>
+                              <div>
+                                <p className="text-xs font-medium">Combined km/L:</p>
+                                <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">HEV km/L:</p>
+                                <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV Wh/km:</p>
+                                <p className="text-xs">1000 ÷ (EV Distance ÷ Energy kWh)</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV as km/L*:</p>
+                                <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <p className="text-xs font-medium">Combined L/100km:</p>
+                                <p className="text-xs">100 ÷ Combined km/L</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">HEV L/100km:</p>
+                                <p className="text-xs">100 ÷ HEV km/L</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV kWh/100km:</p>
+                                <p className="text-xs">Energy × 100 ÷ EV Distance</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV as L/100km*:</p>
+                                <p className="text-xs">100 ÷ EV km/L*</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <button
+                      onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+                      className="flex gap-1 ml-2"
+                      type="button"
+                    >
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full border ${
+                          efficiencyUnit === "kmPer"
+                            ? "bg-primary border-primary"
+                            : "bg-background border-muted-foreground"
+                        }`}
+                      />
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full border ${
+                          efficiencyUnit === "per100"
+                            ? "bg-primary border-primary"
+                            : "bg-background border-muted-foreground"
+                        }`}
+                      />
+                    </button>
+                  </CardTitle>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">

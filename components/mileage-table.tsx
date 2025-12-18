@@ -145,7 +145,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   onClick={() => setShowDistancePerDay(!showDistancePerDay)}
                 >
                   <div className="flex items-center gap-2">
-                    Distance (km)
+                    {showDistancePerDay ? "Distance/Day (km/day)" : "Distance (km)"}
                     <Popover
                       open={openPopover === "distance"}
                       onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
@@ -200,6 +200,14 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                         </div>
                       </PopoverContent>
                     </Popover>
+                    <div className="flex gap-1">
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full border ${!showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                      />
+                      <div
+                        className={`h-1.5 w-1.5 rounded-full border ${showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                      />
+                    </div>
                   </div>
                 </TableHead>
                 <TableHead
@@ -740,7 +748,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   <dt className="text-muted-foreground font-medium align-top">Total Cost</dt>
                   <dd className="text-right font-medium align-top">₱{calculated.totalCost.toFixed(2)}</dd>
 
-                  <dt className="text-muted-foreground flex items-start justify-between">
+                  <dt className="text-muted-foreground flex items-start justify-between col-span-1">
                     <span>Cost</span>
                     <div className="flex items-center gap-1">
                       <button
@@ -839,7 +847,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                     </dd>
                   )}
 
-                  <dt className="text-muted-foreground flex items-start justify-between">
+                  <dt className="text-muted-foreground flex items-start justify-between col-span-1">
                     <span>Efficiency</span>
                     <div className="flex items-center gap-1">
                       <button
@@ -920,7 +928,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                       </Popover>
                     </div>
                   </dt>
-                  <dd className="text-sm space-y-1 col-span-2 align-top">
+                  <dd className="text-sm space-y-1 col-span-1 self-start text-right">
                     {efficiencyUnit === "kmPer" ? (
                       <>
                         <div>{calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}</div>

@@ -159,6 +159,62 @@ export default function Page() {
     event.target.value = ""
   }
 
+  const handleImportDummyData = () => {
+    const dummyData: MileageEntry[] = [
+      {
+        date: "2025-08-26",
+        odo: 16138,
+        fuelAmount: 36.07,
+        fuelCost: 2130.06,
+        pluginAmount: 744.8,
+        energyTariff: 14,
+        id: "2caa8c91-1e01-4bc4-a53b-7ec0b786596a",
+      },
+      {
+        date: "2025-09-19",
+        odo: 17590,
+        fuelAmount: 44.42,
+        fuelCost: 2411.9,
+        pluginAmount: 906.8,
+        energyTariff: 14,
+        id: "3543f5e7-29cc-4b18-8816-03176053ece0",
+      },
+      {
+        date: "2025-10-29",
+        odo: 19587,
+        fuelAmount: 40.76,
+        fuelCost: 2278.31,
+        pluginAmount: 1167.2,
+        energyTariff: 14,
+        id: "6cb6dbe5-5025-425a-ab2a-e1204f4a751f",
+      },
+      {
+        date: "2025-11-13",
+        hevOdo: 9511,
+        evOdo: 11525,
+        odo: 21036,
+        fuelAmount: 48.11,
+        fuelCost: 2870,
+        pluginAmount: 1288,
+        energyTariff: 14,
+        id: "c6e58737-f3da-44f8-b997-8b80ba9670a2",
+      },
+      {
+        date: "2025-12-09",
+        hevOdo: 10069,
+        evOdo: 12352,
+        odo: 22420,
+        fuelAmount: 46.25,
+        fuelCost: 2730.94,
+        pluginAmount: 1420.4,
+        energyTariff: 14,
+        id: "44ee236f-8a29-44d2-afb4-d863387f6f0a",
+      },
+    ]
+    setEntries(dummyData)
+    localStorage.setItem("phev-mileage-entries", JSON.stringify(dummyData))
+  }
+
   const getSortedEntries = () => {
     return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }
@@ -267,6 +323,15 @@ export default function Page() {
                   Import
                 </Button>
               </div>
+              <p className="text-sm text-muted-foreground">
+                or{" "}
+                <button
+                  onClick={handleImportDummyData}
+                  className="text-muted-foreground hover:text-foreground underline underline-offset-4"
+                >
+                  import dummy data
+                </button>
+              </p>
             </div>
           </div>
         ) : (
