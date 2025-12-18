@@ -8,9 +8,10 @@ import { MileageTable, generateCSV } from "@/components/mileage-table"
 import { InstallPrompt } from "@/components/install-prompt"
 import { HelpInstructions } from "@/components/help-instructions"
 import { Footer } from "@/components/footer"
+import { AppToolbar } from "@/components/app-toolbar"
 import { Button } from "@/components/ui/button"
-import { Plus, Menu, Download, Upload, Moon, Sun, HelpCircle, FileText, BarChart3 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, Download, Upload, Moon, Sun, HelpCircle, FileText, BarChart3 } from "lucide-react"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,34 +24,37 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useTheme } from "@/components/theme-provider"
 import Link from "next/link"
+import {
+  loadVehicleData,
+  saveVehicleData,
+  deleteVehicle,
+  type MileageEntry,
+  type VehicleData,
+  getCurrencySymbol,
+  updateVehicleCurrency,
+} from "@/lib/vehicle-storage"
 
-export interface MileageEntry {
-  id: string
-  date: string
-  hevOdo?: number
-  evOdo?: number
-  odo: number
-  fuelAmount: number
-  fuelCost: number
-  pluginAmount: number
-  energyTariff: number
-}
+export type { MileageEntry }
 
-export default function Page() {
+export default function MileageTracker() {
+  const [vehicleData, setVehicleData] = useState<VehicleData | null>(null)
   const [entries, setEntries] = useState<MileageEntry[]>([])
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [editingEntry, setEditingEntry] = useState<MileageEntry | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteVehicleConfirm, setDeleteVehicleConfirm] = useState<string | null>(null)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("PHP")
 
   useEffect(() => {
-    const stored = localStorage.getItem("phev-mileage-entries")
-    if (stored) {
-      setEntries(JSON.parse(stored))
-    }
+    const data = loadVehicleData()
+    setVehicleData(data)
+    setEntries(data.entries[data.currentVehicleId] || [])
+
     const hasSeenHelp = localStorage.getItem("phev-has-seen-help")
     if (!hasSeenHelp) {
       setIsHelpOpen(true)
@@ -68,22 +72,118 @@ export default function Page() {
         },
       )
     }
+
+    const currentVehicle = data.vehicles.find((v) => v.id === data.currentVehicleId)
+    if (currentVehicle?.currency) {
+      setSelectedCurrency(currentVehicle.currency)
+    }
   }, [])
 
+  useEffect(() => {
+    if (vehicleData) {
+      const currentVehicle = vehicleData.vehicles.find((v) => v.id === vehicleData.currentVehicleId)
+      if (currentVehicle?.currency && currentVehicle.currency !== selectedCurrency) {
+        setSelectedCurrency(currentVehicle.currency)
+      }
+    }
+  }, [vehicleData])
+
+  const handleSelectVehicle = (vehicleId: string) => {
+    if (!vehicleData) return
+    const updatedData = {
+      ...vehicleData,
+      currentVehicleId: vehicleId,
+    }
+    setVehicleData(updatedData)
+    setEntries(updatedData.entries[vehicleId] || [])
+    saveVehicleData(updatedData)
+  }
+
+  const handleAddVehicle = (name: string) => {
+    if (!vehicleData) return
+    const newVehicle = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+      currency: selectedCurrency,
+    }
+    const updatedData = {
+      ...vehicleData,
+      vehicles: [...vehicleData.vehicles, newVehicle],
+      currentVehicleId: newVehicle.id,
+      entries: {
+        ...vehicleData.entries,
+        [newVehicle.id]: [],
+      },
+    }
+    setVehicleData(updatedData)
+    setEntries([])
+    saveVehicleData(updatedData)
+  }
+
+  const handleRenameVehicle = (vehicleId: string, newName: string) => {
+    if (!vehicleData) return
+    const updatedData = {
+      ...vehicleData,
+      vehicles: vehicleData.vehicles.map((v) => (v.id === vehicleId ? { ...v, name: newName } : v)),
+    }
+    setVehicleData(updatedData)
+    saveVehicleData(updatedData)
+  }
+
+  const handleDeleteVehicle = () => {
+    if (!vehicleData || !deleteVehicleConfirm) return
+
+    const updatedData = deleteVehicle(vehicleData, deleteVehicleConfirm)
+    if (!updatedData) {
+      alert("Cannot delete the last vehicle")
+      setDeleteVehicleConfirm(null)
+      return
+    }
+
+    setVehicleData(updatedData)
+    setEntries(updatedData.entries[updatedData.currentVehicleId] || [])
+    saveVehicleData(updatedData)
+    setDeleteVehicleConfirm(null)
+  }
+
   const handleAddEntry = (entry: Omit<MileageEntry, "id">) => {
+    if (!vehicleData) return
+
+    const currentVehicleId = vehicleData.currentVehicleId
+    const currentEntries = vehicleData.entries[currentVehicleId] || []
+
     if (editingEntry) {
-      const updatedEntries = entries.map((e) => (e.id === editingEntry.id ? { ...entry, id: editingEntry.id } : e))
+      const updatedEntries = currentEntries.map((e) =>
+        e.id === editingEntry.id ? { ...entry, id: editingEntry.id } : e,
+      )
+      const updatedData = {
+        ...vehicleData,
+        entries: {
+          ...vehicleData.entries,
+          [currentVehicleId]: updatedEntries,
+        },
+      }
+      setVehicleData(updatedData)
       setEntries(updatedEntries)
-      localStorage.setItem("phev-mileage-entries", JSON.stringify(updatedEntries))
+      saveVehicleData(updatedData)
       setEditingEntry(null)
     } else {
       const newEntry = {
         ...entry,
         id: crypto.randomUUID(),
       }
-      const updatedEntries = [...entries, newEntry]
+      const updatedEntries = [...currentEntries, newEntry]
+      const updatedData = {
+        ...vehicleData,
+        entries: {
+          ...vehicleData.entries,
+          [currentVehicleId]: updatedEntries,
+        },
+      }
+      setVehicleData(updatedData)
       setEntries(updatedEntries)
-      localStorage.setItem("phev-mileage-entries", JSON.stringify(updatedEntries))
+      saveVehicleData(updatedData)
     }
     setIsFormOpen(false)
   }
@@ -93,12 +193,23 @@ export default function Page() {
   }
 
   const confirmDelete = () => {
-    if (deleteConfirmId) {
-      const updatedEntries = entries.filter((entry) => entry.id !== deleteConfirmId)
-      setEntries(updatedEntries)
-      localStorage.setItem("phev-mileage-entries", JSON.stringify(updatedEntries))
-      setDeleteConfirmId(null)
+    if (!vehicleData || !deleteConfirmId) return
+
+    const currentVehicleId = vehicleData.currentVehicleId
+    const currentEntries = vehicleData.entries[currentVehicleId] || []
+    const updatedEntries = currentEntries.filter((entry) => entry.id !== deleteConfirmId)
+
+    const updatedData = {
+      ...vehicleData,
+      entries: {
+        ...vehicleData.entries,
+        [currentVehicleId]: updatedEntries,
+      },
     }
+    setVehicleData(updatedData)
+    setEntries(updatedEntries)
+    saveVehicleData(updatedData)
+    setDeleteConfirmId(null)
   }
 
   const handleEditEntry = (entry: MileageEntry) => {
@@ -138,6 +249,8 @@ export default function Page() {
   }
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!vehicleData) return
+
     const file = event.target.files?.[0]
     if (!file) return
 
@@ -146,8 +259,17 @@ export default function Page() {
       try {
         const importedData = JSON.parse(e.target?.result as string)
         if (Array.isArray(importedData)) {
+          const currentVehicleId = vehicleData.currentVehicleId
+          const updatedData = {
+            ...vehicleData,
+            entries: {
+              ...vehicleData.entries,
+              [currentVehicleId]: importedData,
+            },
+          }
+          setVehicleData(updatedData)
           setEntries(importedData)
-          localStorage.setItem("phev-mileage-entries", JSON.stringify(importedData))
+          saveVehicleData(updatedData)
         } else {
           alert("Invalid file format. Please upload a valid JSON file.")
         }
@@ -160,6 +282,8 @@ export default function Page() {
   }
 
   const handleImportDummyData = () => {
+    if (!vehicleData) return
+
     const dummyData: MileageEntry[] = [
       {
         date: "2025-08-26",
@@ -211,8 +335,18 @@ export default function Page() {
         id: "44ee236f-8a29-44d2-afb4-d863387f6f0a",
       },
     ]
+
+    const currentVehicleId = vehicleData.currentVehicleId
+    const updatedData = {
+      ...vehicleData,
+      entries: {
+        ...vehicleData.entries,
+        [currentVehicleId]: dummyData,
+      },
+    }
+    setVehicleData(updatedData)
     setEntries(dummyData)
-    localStorage.setItem("phev-mileage-entries", JSON.stringify(dummyData))
+    saveVehicleData(updatedData)
   }
 
   const getSortedEntries = () => {
@@ -247,14 +381,34 @@ export default function Page() {
     }
   }
 
-  if (!isLoaded) {
+  const handleCurrencyChange = (currency: string) => {
+    if (!vehicleData) return
+    const updated = updateVehicleCurrency(vehicleData, vehicleData.currentVehicleId, currency)
+    setVehicleData(updated)
+    saveVehicleData(updated)
+    setSelectedCurrency(currency)
+  }
+
+  if (!isLoaded || !vehicleData) {
     return null
   }
+
+  const currentVehicle = vehicleData?.vehicles.find((v) => v.id === vehicleData.currentVehicleId)
+  const currencySymbol = getCurrencySymbol(currentVehicle?.currency || selectedCurrency)
 
   const navigationState = getNavigationState()
 
   return (
     <main className="min-h-screen bg-background">
+      <AppToolbar
+        vehicles={vehicleData.vehicles}
+        currentVehicleId={vehicleData.currentVehicleId}
+        onSelectVehicle={handleSelectVehicle}
+        onAddVehicle={handleAddVehicle}
+        onRenameVehicle={handleRenameVehicle}
+        onMenuClick={() => setMenuOpen(!menuOpen)}
+      />
+
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
         <div className="mb-8 flex items-start justify-between">
           <div>
@@ -262,50 +416,148 @@ export default function Page() {
             <p className="text-muted-foreground">Track your hybrid vehicle's fuel and electric consumption</p>
           </div>
           {entries.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href="/overview" className="flex items-center">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Overview
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={toggleTheme}>
-                  {theme === "light" ? (
-                    <>
-                      <Moon className="h-4 w-4 mr-2" />
-                      Dark Mode
-                    </>
-                  ) : (
-                    <>
-                      <Sun className="h-4 w-4 mr-2" />
-                      Light Mode
-                    </>
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsHelpOpen(true)}>
-                  <HelpCircle className="h-4 w-4 mr-2" />
-                  Help
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportCSV}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Export CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import Data
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                <nav className="flex flex-col h-full py-6">
+                  <div className="px-3 space-y-1">
+                    <Link
+                      href="/overview"
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 group"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <BarChart3 className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Overview</span>
+                    </Link>
+
+                    <div className="h-px bg-border my-3" />
+
+                    <div className="px-4 py-3">
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Currency Display</label>
+                      <select
+                        value={selectedCurrency}
+                        onChange={(e) => handleCurrencyChange(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                      >
+                        <option value="USD">USD - US Dollar ($)</option>
+                        <option value="EUR">EUR - Euro (€)</option>
+                        <option value="GBP">GBP - British Pound (£)</option>
+                        <option value="JPY">JPY - Japanese Yen (¥)</option>
+                        <option value="CNY">CNY - Chinese Yuan (¥)</option>
+                        <option value="INR">INR - Indian Rupee (₹)</option>
+                        <option value="AUD">AUD - Australian Dollar (A$)</option>
+                        <option value="CAD">CAD - Canadian Dollar (C$)</option>
+                        <option value="CHF">CHF - Swiss Franc (CHF)</option>
+                        <option value="KRW">KRW - South Korean Won (₩)</option>
+                        <option value="SGD">SGD - Singapore Dollar (S$)</option>
+                        <option value="HKD">HKD - Hong Kong Dollar (HK$)</option>
+                        <option value="SEK">SEK - Swedish Krona (kr)</option>
+                        <option value="NOK">NOK - Norwegian Krone (kr)</option>
+                        <option value="NZD">NZD - New Zealand Dollar (NZ$)</option>
+                        <option value="MXN">MXN - Mexican Peso (MX$)</option>
+                        <option value="ZAR">ZAR - South African Rand (R)</option>
+                        <option value="BRL">BRL - Brazilian Real (R$)</option>
+                        <option value="TRY">TRY - Turkish Lira (₺)</option>
+                        <option value="RUB">RUB - Russian Ruble (₽)</option>
+                        <option value="PHP">PHP - Philippine Peso (₱)</option>
+                      </select>
+                    </div>
+
+                    <div className="h-px bg-border my-3" />
+
+                    <button
+                      onClick={() => {
+                        handleExport()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <Download className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Export JSON</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleExportCSV()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <FileText className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Export CSV</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        importInputRef.current?.click()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <Upload className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Import Data</span>
+                    </button>
+
+                    <div className="h-px bg-border my-3" />
+
+                    <button
+                      onClick={() => {
+                        toggleTheme()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      {theme === "light" ? (
+                        <>
+                          <Moon className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          <span className="font-medium">Dark Mode</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sun className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          <span className="font-medium">Light Mode</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                        setMenuOpen(false)
+                      }}
+                      disabled={vehicleData?.vehicles.length === 1}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg
+                        className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                      <span className="font-medium text-destructive">Delete Vehicle</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-auto px-3 pt-3 border-t">
+                    <button
+                      onClick={() => {
+                        setIsHelpOpen(true)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <HelpCircle className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Help</span>
+                    </button>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
           )}
         </div>
 
@@ -336,7 +588,12 @@ export default function Page() {
           </div>
         ) : (
           <>
-            <MileageTable entries={entries} onDelete={handleDeleteEntry} onEdit={handleEditEntry} />
+            <MileageTable
+              entries={entries}
+              onDelete={handleDeleteEntry}
+              onEdit={handleEditEntry}
+              currencySymbol={currencySymbol}
+            />
             <button
               onClick={() => setIsFormOpen(true)}
               className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors flex items-center justify-center"
@@ -377,6 +634,26 @@ export default function Page() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={deleteVehicleConfirm !== null} onOpenChange={() => setDeleteVehicleConfirm(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Vehicle?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the vehicle and all its mileage entries.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteVehicle}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete Vehicle
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

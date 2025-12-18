@@ -10,11 +10,12 @@ import type { MileageEntry } from "@/app/page"
 
 interface MileageTableProps {
   entries: MileageEntry[]
+  onUpdate: (id: string, entry: Partial<MileageEntry>) => void
   onDelete: (id: string) => void
-  onEdit: (entry: MileageEntry) => void
+  currencySymbol: string
 }
 
-export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
+export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "₱" }: MileageTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [openPopover, setOpenPopover] = useState<string | null>(null)
   const [showDistancePerDay, setShowDistancePerDay] = useState(false)
@@ -236,7 +237,7 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                   }}
                 >
                   <div className="flex items-center justify-end gap-2">
-                    Cost (₱){costView === "perKm" && "/km"}
+                    Cost ({currencySymbol}){costView === "perKm" && "/km"}
                     {costView === "perDay" && "/day"}
                     <Popover
                       open={openPopover === "cost"}
@@ -261,13 +262,13 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                             <p>Fuel Cost + Energy Cost</p>
                           </div>
                           <div>
-                            <p className="text-xs font-medium">Cost per Kilometer (₱/km):</p>
+                            <p className="text-xs font-medium">Cost per Kilometer ({currencySymbol}/km):</p>
                             <p className="text-xs">Combined: Total Cost ÷ Distance</p>
                             <p className="text-xs">EV: Energy Cost ÷ EV Distance</p>
                             <p className="text-xs">HEV: Fuel Cost ÷ HEV Distance</p>
                           </div>
                           <div>
-                            <p className="text-xs font-medium">Cost per Day (₱/day):</p>
+                            <p className="text-xs font-medium">Cost per Day ({currencySymbol}/day):</p>
                             <p className="text-xs">Combined: Total Cost ÷ Days</p>
                             <p className="text-xs">EV: Energy Cost ÷ Days</p>
                             <p className="text-xs">HEV: Fuel Cost ÷ Days</p>
@@ -496,7 +497,10 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                     <TableCell className="align-top">
                       {costView === "total" ? (
                         <>
-                          <p className="text-right">{calculated.totalCost.toFixed(2)}</p>
+                          <p className="text-right">
+                            {currencySymbol}
+                            {calculated.totalCost.toFixed(2)}
+                          </p>
                           {calculated.energyCost > 0 && (
                             <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
                               <Zap className="h-3 w-3" />
@@ -511,32 +515,38 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                       ) : costView === "perKm" ? (
                         <>
                           <p className="text-right">
-                            {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}
+                            {currencySymbol}
+                            {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km
                           </p>
                           {calculated.evCostPerKm > 0 && (
                             <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evCostPerKm.toFixed(2)}
+                              EV: {currencySymbol}
+                              {calculated.evCostPerKm.toFixed(2)}/km
                             </p>
                           )}
                           {calculated.hevCostPerKm > 0 && (
                             <p className="text-sm text-muted-foreground text-right">
-                              HEV {calculated.hevCostPerKm.toFixed(2)}
+                              HEV: {currencySymbol}
+                              {calculated.hevCostPerKm.toFixed(2)}/km
                             </p>
                           )}
                         </>
                       ) : (
                         <>
                           <p className="text-right">
-                            {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}
+                            {currencySymbol}
+                            {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day
                           </p>
                           {calculated.evCostPerDay > 0 && (
                             <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evCostPerDay.toFixed(2)}
+                              EV: {currencySymbol}
+                              {calculated.evCostPerDay.toFixed(2)}/day
                             </p>
                           )}
                           {calculated.hevCostPerDay > 0 && (
                             <p className="text-sm text-muted-foreground text-right">
-                              HEV {calculated.hevCostPerDay.toFixed(2)}
+                              HEV: {currencySymbol}
+                              {calculated.hevCostPerDay.toFixed(2)}/day
                             </p>
                           )}
                         </>
@@ -589,7 +599,12 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => onUpdate(entry.id, entry)}
+                          className="h-8 w-8"
+                        >
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">Edit entry</span>
                         </Button>
@@ -630,7 +645,7 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                     )}
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(entry)} className="h-8 w-8">
+                    <Button variant="ghost" size="icon" onClick={() => onUpdate(entry.id, entry)} className="h-8 w-8">
                       <Pencil className="h-4 w-4" />
                       <span className="sr-only">Edit entry</span>
                     </Button>
@@ -752,7 +767,10 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                   <dd className="text-right align-top">{entry.fuelAmount.toFixed(2)} L</dd>
 
                   <dt className="text-muted-foreground align-top">Fuel Cost</dt>
-                  <dd className="text-right align-top">₱{entry.fuelCost.toFixed(2)}</dd>
+                  <dd className="text-right align-top">
+                    {currencySymbol}
+                    {entry.fuelCost.toFixed(2)}
+                  </dd>
 
                   {calculated.costPerLiter > 0 && (
                     <>
@@ -760,7 +778,10 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                         <DollarSign className="h-3 w-3" />
                         Cost/L
                       </dt>
-                      <dd className="text-right align-top">₱{calculated.costPerLiter.toFixed(2)}</dd>
+                      <dd className="text-right align-top">
+                        {currencySymbol}
+                        {calculated.costPerLiter.toFixed(2)}
+                      </dd>
                     </>
                   )}
 
@@ -779,7 +800,10 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                     <DollarSign className="h-3 w-3" />
                     Tariff
                   </dt>
-                  <dd className="text-right align-top">₱{entry.energyTariff.toFixed(2)}/kWh</dd>
+                  <dd className="text-right align-top">
+                    {currencySymbol}
+                    {entry.energyTariff.toFixed(2)}/kWh
+                  </dd>
 
                   {calculated.energyCost > 0 && (
                     <>
@@ -787,12 +811,18 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                         <Zap className="h-3 w-3" />
                         Energy Cost
                       </dt>
-                      <dd className="text-right align-top">₱{calculated.energyCost.toFixed(2)}</dd>
+                      <dd className="text-right align-top">
+                        {currencySymbol}
+                        {calculated.energyCost.toFixed(2)}
+                      </dd>
                     </>
                   )}
 
                   <dt className="text-muted-foreground font-medium align-top">Total Cost</dt>
-                  <dd className="text-right font-medium align-top">₱{calculated.totalCost.toFixed(2)}</dd>
+                  <dd className="text-right font-medium align-top">
+                    {currencySymbol}
+                    {calculated.totalCost.toFixed(2)}
+                  </dd>
 
                   <dt className="text-muted-foreground flex items-start justify-between col-span-1">
                     <span>Cost</span>
@@ -841,13 +871,13 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                               <p>Fuel Cost + Energy Cost</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium">Cost per Kilometer (₱/km):</p>
+                              <p className="text-xs font-medium">Cost per Kilometer ({currencySymbol}/km):</p>
                               <p className="text-xs">Combined: Total Cost ÷ Distance</p>
                               <p className="text-xs">EV: Energy Cost ÷ EV Distance</p>
                               <p className="text-xs">HEV: Fuel Cost ÷ HEV Distance</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium">Cost per Day (₱/day):</p>
+                              <p className="text-xs font-medium">Cost per Day ({currencySymbol}/day):</p>
                               <p className="text-xs">Combined: Total Cost ÷ Days</p>
                               <p className="text-xs">EV: Energy Cost ÷ Days</p>
                               <p className="text-xs">HEV: Fuel Cost ÷ Days</p>
@@ -859,7 +889,10 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                   </dt>
                   {costView === "total" ? (
                     <dd className="text-right align-top">
-                      <p>₱{calculated.totalCost.toFixed(2)}</p>
+                      <p>
+                        {currencySymbol}
+                        {calculated.totalCost.toFixed(2)}
+                      </p>
                       {calculated.energyCost > 0 && (
                         <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
                           <Zap className="h-3 w-3" />
@@ -873,22 +906,40 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
                     </dd>
                   ) : costView === "perKm" ? (
                     <dd className="text-right align-top">
-                      <p>₱{calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km</p>
+                      <p>
+                        {currencySymbol}
+                        {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km
+                      </p>
                       {calculated.evCostPerKm > 0 && (
-                        <p className="text-sm text-muted-foreground">EV: ₱{calculated.evCostPerKm.toFixed(2)}/km</p>
+                        <p className="text-sm text-muted-foreground">
+                          EV: {currencySymbol}
+                          {calculated.evCostPerKm.toFixed(2)}/km
+                        </p>
                       )}
                       {calculated.hevCostPerKm > 0 && (
-                        <p className="text-sm text-muted-foreground">HEV: ₱{calculated.hevCostPerKm.toFixed(2)}/km</p>
+                        <p className="text-sm text-muted-foreground">
+                          HEV: {currencySymbol}
+                          {calculated.hevCostPerKm.toFixed(2)}/km
+                        </p>
                       )}
                     </dd>
                   ) : (
                     <dd className="text-right align-top">
-                      <p>₱{calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day</p>
+                      <p>
+                        {currencySymbol}
+                        {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day
+                      </p>
                       {calculated.evCostPerDay > 0 && (
-                        <p className="text-sm text-muted-foreground">EV: ₱{calculated.evCostPerDay.toFixed(2)}/day</p>
+                        <p className="text-sm text-muted-foreground">
+                          EV: {currencySymbol}
+                          {calculated.evCostPerDay.toFixed(2)}/day
+                        </p>
                       )}
                       {calculated.hevCostPerDay > 0 && (
-                        <p className="text-sm text-muted-foreground">HEV: ₱{calculated.hevCostPerDay.toFixed(2)}/day</p>
+                        <p className="text-sm text-muted-foreground">
+                          HEV: {currencySymbol}
+                          {calculated.hevCostPerDay.toFixed(2)}/day
+                        </p>
                       )}
                     </dd>
                   )}
@@ -1093,7 +1144,7 @@ export function MileageTable({ entries, onEdit, onDelete }: MileageTableProps) {
   )
 }
 
-export function generateCSV(entries: MileageEntry[]): string {
+export function generateCSV(entries: MileageEntry[], currencySymbol = "₱"): string {
   const sortedEntries = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   const calculateValues = (entry: MileageEntry, prevEntry: MileageEntry | null) => {
@@ -1213,19 +1264,19 @@ export function generateCSV(entries: MileageEntry[]): string {
     "HEV Distance (km)",
     "Days Since Refuel",
     "Fuel Amount (L)",
-    "Fuel Cost (₱)",
-    "Cost per Liter (₱/L)",
+    `Fuel Cost (${currencySymbol})`,
+    `Cost per Liter (${currencySymbol}/L)`,
     "Plug-in Amount (kWh)",
     "Energy Used (kWh)",
-    "Energy Tariff (₱/kWh)",
-    "Energy Cost (₱)",
-    "Total Cost (₱)",
-    "Cost per Day (₱/day)",
-    "EV Cost per Day (₱/day)",
-    "HEV Cost per Day (₱/day)",
-    "Cost per km (₱/km)",
-    "EV Cost per km (₱/km)",
-    "HEV Cost per km (₱/km)",
+    `Energy Tariff (${currencySymbol}/kWh)`,
+    `Energy Cost (${currencySymbol})`,
+    `Total Cost (${currencySymbol})`,
+    `Cost per Day (${currencySymbol}/day)`,
+    `EV Cost per Day (${currencySymbol}/day)`,
+    `HEV Cost per Day (${currencySymbol}/day)`,
+    `Cost per km (${currencySymbol}/km)`,
+    `EV Cost per km (${currencySymbol}/km)`,
+    `HEV Cost per km (${currencySymbol}/km)`,
     "Combined km/L",
     "Combined L/100km",
     "EV Wh/km",
@@ -1238,7 +1289,7 @@ export function generateCSV(entries: MileageEntry[]): string {
     "EV Distance/day (km/d)",
     "HEV Distance/day (km/d)",
     "Energy Used/day (kWh/day)",
-    "Total Cost/day (₱/day)",
+    `Total Cost/day (${currencySymbol}/day)`,
   ]
 
   const rows = sortedEntries.map((entry, index) => {

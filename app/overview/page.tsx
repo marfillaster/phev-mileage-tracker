@@ -1,33 +1,168 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { MileageEntry } from "../page"
+import type { MileageEntry } from "@/lib/vehicle-storage"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Footer } from "@/components/footer"
-import { Calendar, Fuel, Zap, DollarSign, Gauge, TrendingUp, Info } from "lucide-react"
+import {
+  Calendar,
+  Fuel,
+  Zap,
+  DollarSign,
+  Gauge,
+  TrendingUp,
+  Info,
+  Moon,
+  Sun,
+  HelpCircle,
+  Download,
+  Upload,
+  FileText,
+  List,
+} from "lucide-react"
 import Link from "next/link"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { AppToolbar } from "@/components/app-toolbar"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import {
+  loadVehicleData,
+  saveVehicleData,
+  deleteVehicle,
+  type VehicleData,
+  getCurrencySymbol, // Imported for currency display
+  updateVehicleCurrency, // Imported for currency update
+} from "@/lib/vehicle-storage"
+import { useTheme } from "@/components/theme-provider"
+import { handleExport as exportJSON, handleExportCSV as exportCSV } from "@/lib/export-import"
+import { generateCSV } from "@/components/mileage-table"
+import { useRef } from "react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 type TimeRange = "year" | "sixMonths"
 
-export default function OverviewPage() {
+export default function Overview() {
+  const [vehicleData, setVehicleData] = useState<VehicleData | null>(null)
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("PHP")
   const [entries, setEntries] = useState<MileageEntry[]>([])
   const [timeRange, setTimeRange] = useState<TimeRange>("year")
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
   const [openPopover, setOpenPopover] = useState<string | null>(null)
-  const [evEfficiency, setEvEfficiency] = useState<number>(0) // Declare evEfficiency
-  const [hevFuelEfficiency, setHevFuelEfficiency] = useState<number>(0) // Declare hevFuelEfficiency
+  const [distanceView, setDistanceView] = useState<"total" | "perDay">("total")
+  const [costView, setCostView] = useState<"total" | "perKm" | "perDay">("total")
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [deleteVehicleConfirm, setDeleteVehicleConfirm] = useState<string | null>(null)
+  const { theme, toggleTheme } = useTheme()
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const stored = localStorage.getItem("phev-mileage-entries")
-    if (stored) {
-      const parsedEntries = JSON.parse(stored)
-      setEntries(parsedEntries)
+    const data = loadVehicleData()
+    setVehicleData(data)
+    setEntries(data ? data.entries[data.currentVehicleId] || [] : [])
+    const currentVehicle = data.vehicles.find((v) => v.id === data.currentVehicleId)
+    if (currentVehicle?.currency) {
+      setSelectedCurrency(currentVehicle.currency)
     }
   }, [])
+
+  useEffect(() => {
+    if (vehicleData) {
+      const currentVehicle = vehicleData.vehicles.find((v) => v.id === vehicleData.currentVehicleId)
+      if (currentVehicle?.currency && currentVehicle.currency !== selectedCurrency) {
+        setSelectedCurrency(currentVehicle.currency)
+      }
+    }
+  }, [vehicleData, selectedCurrency])
+
+  const handleSelectVehicle = (vehicleId: string) => {
+    if (!vehicleData) return
+    const updatedData = {
+      ...vehicleData,
+      currentVehicleId: vehicleId,
+    }
+    setVehicleData(updatedData)
+    setEntries(updatedData.entries[vehicleId] || [])
+    // Update currency when vehicle is selected
+    const currentVehicle = updatedData.vehicles.find((v) => v.id === vehicleId)
+    if (currentVehicle?.currency) {
+      setSelectedCurrency(currentVehicle.currency)
+    }
+    saveVehicleData(updatedData)
+  }
+
+  const handleAddVehicle = (name: string) => {
+    if (!vehicleData) return
+    const newVehicle = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+    }
+    const updatedData = {
+      ...vehicleData,
+      vehicles: [...vehicleData.vehicles, newVehicle],
+      currentVehicleId: newVehicle.id,
+      entries: {
+        ...vehicleData.entries,
+        [newVehicle.id]: [],
+      },
+    }
+    setVehicleData(updatedData)
+    setEntries([])
+    saveVehicleData(updatedData)
+  }
+
+  const handleRenameVehicle = (vehicleId: string, newName: string) => {
+    if (!vehicleData) return
+    const updatedData = {
+      ...vehicleData,
+      vehicles: vehicleData.vehicles.map((v) => (v.id === vehicleId ? { ...v, name: newName } : v)),
+    }
+    setVehicleData(updatedData)
+    saveVehicleData(updatedData)
+  }
+
+  const handleDeleteVehicle = () => {
+    if (!vehicleData || !deleteVehicleConfirm) return
+
+    const updatedData = deleteVehicle(vehicleData, deleteVehicleConfirm)
+    if (!updatedData) {
+      alert("Cannot delete the last vehicle")
+      setDeleteVehicleConfirm(null)
+      return
+    }
+
+    setVehicleData(updatedData)
+    setEntries(updatedData.entries[updatedData.currentVehicleId] || [])
+    // Update currency when vehicle is deleted
+    const currentVehicle = updatedData.vehicles.find((v) => v.id === updatedData.currentVehicleId)
+    if (currentVehicle?.currency) {
+      setSelectedCurrency(currentVehicle.currency)
+    } else {
+      // Fallback to default or a reasonable default if no currency is set
+      setSelectedCurrency("PHP")
+    }
+    saveVehicleData(updatedData)
+    setDeleteVehicleConfirm(null)
+  }
+
+  const handleCurrencyChange = (currency: string) => {
+    if (!vehicleData) return
+    const updated = updateVehicleCurrency(vehicleData, vehicleData.currentVehicleId, currency)
+    setVehicleData(updated)
+    saveVehicleData(updated)
+    setSelectedCurrency(currency)
+  }
 
   const getAvailableYears = () => {
     if (entries.length === 0) return []
@@ -100,36 +235,29 @@ export default function OverviewPage() {
       const current = truncatedEntries[i - 1]
       const previous = truncatedEntries[i]
 
-      const distance = current.odo - previous.odo
-      totalDistance += distance
+      // Only count entries where both current and previous have complete HEV and EV ODO data
+      if (current.hevOdo && current.evOdo && previous.hevOdo && previous.evOdo) {
+        const distance = current.odo - previous.odo
+        totalDistance += distance
 
-      if (current.hevOdo && current.evOdo) {
         completeEntryCount++
-      }
 
-      if (current.hevOdo && previous.hevOdo) {
         const hevDistance = current.hevOdo - previous.hevOdo
         totalHevDistance += hevDistance
         hevFuelAmount += current.fuelAmount
-      }
 
-      if (current.evOdo && previous.evOdo) {
         const evDistance = current.evOdo - previous.evOdo
         totalEvDistance += evDistance
 
         const energy = current.pluginAmount - previous.pluginAmount
         evEnergy += energy
-      }
 
-      totalFuelAmount += current.fuelAmount
-      totalFuelCost += current.fuelCost
+        totalFuelAmount += current.fuelAmount
+        totalFuelCost += current.fuelCost
 
-      const energy = current.pluginAmount - previous.pluginAmount
-      totalEnergy += energy
-      totalEnergyCost += energy * current.energyTariff
+        totalEnergy += energy
+        totalEnergyCost += energy * current.energyTariff
 
-      // Only count days if both entries have complete HEV and EV ODO data
-      if (current.hevOdo && current.evOdo && previous.hevOdo && previous.evOdo) {
         const daysDiff = (new Date(current.date).getTime() - new Date(previous.date).getTime()) / (1000 * 60 * 60 * 24)
         totalDays += daysDiff
         console.log("[v0] Adding days:", daysDiff, "from", previous.date, "to", current.date)
@@ -138,6 +266,8 @@ export default function OverviewPage() {
 
     console.log("[v0] Total days calculated:", totalDays)
     console.log("[v0] Complete entry count:", completeEntryCount)
+    console.log("[v0] Total distance:", totalDistance)
+    console.log("[v0] Total cost:", totalFuelCost + totalEnergyCost)
 
     const totalCost = totalFuelCost + totalEnergyCost
     const costPerKm = totalDistance > 0 ? totalCost / totalDistance : 0
@@ -200,20 +330,176 @@ export default function OverviewPage() {
 
   const metrics = calculateMetrics(entries)
 
+  if (!vehicleData) {
+    return null
+  }
+
+  const currentVehicle = vehicleData?.vehicles.find((v) => v.id === vehicleData.currentVehicleId)
+  const currencySymbol = getCurrencySymbol(currentVehicle?.currency || selectedCurrency)
+
   if (entries.length < 3) {
     return (
       <main className="min-h-screen bg-background">
+        <AppToolbar
+          vehicles={vehicleData.vehicles}
+          currentVehicleId={vehicleData.currentVehicleId}
+          onSelectVehicle={handleSelectVehicle}
+          onAddVehicle={handleAddVehicle}
+          onRenameVehicle={handleRenameVehicle}
+          onMenuClick={() => setMenuOpen(!menuOpen)}
+        />
         <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-          <div className="mb-8">
+          <div className="mb-8 flex items-start justify-between">
             <Link href="/">
               <Button variant="ghost" className="mb-4">
                 ← Back to Mileage Log
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Overview</h1>
-            <p className="text-muted-foreground">Dashboard metrics for your PHEV</p>
-          </div>
+            {entries.length > 0 && (
+              <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+                <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                  <nav className="flex flex-col h-full py-6">
+                    <div className="px-3 space-y-1">
+                      <Link
+                        href="/"
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 group"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <List className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Mileage Log</span>
+                      </Link>
 
+                      <div className="h-px bg-border my-3" />
+
+                      <div className="px-4 py-3">
+                        <label className="text-sm font-medium text-muted-foreground mb-2 block">Currency Display</label>
+                        <select
+                          value={selectedCurrency}
+                          onChange={(e) => handleCurrencyChange(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                        >
+                          <option value="USD">USD - US Dollar ($)</option>
+                          <option value="EUR">EUR - Euro (€)</option>
+                          <option value="GBP">GBP - British Pound (£)</option>
+                          <option value="JPY">JPY - Japanese Yen (¥)</option>
+                          <option value="CNY">CNY - Chinese Yuan (¥)</option>
+                          <option value="INR">INR - Indian Rupee (₹)</option>
+                          <option value="AUD">AUD - Australian Dollar (A$)</option>
+                          <option value="CAD">CAD - Canadian Dollar (C$)</option>
+                          <option value="CHF">CHF - Swiss Franc (CHF)</option>
+                          <option value="KRW">KRW - South Korean Won (₩)</option>
+                          <option value="SGD">SGD - Singapore Dollar (S$)</option>
+                          <option value="HKD">HKD - Hong Kong Dollar (HK$)</option>
+                          <option value="SEK">SEK - Swedish Krona (kr)</option>
+                          <option value="NOK">NOK - Norwegian Krone (kr)</option>
+                          <option value="NZD">NZD - New Zealand Dollar (NZ$)</option>
+                          <option value="MXN">MXN - Mexican Peso (MX$)</option>
+                          <option value="ZAR">ZAR - South African Rand (R)</option>
+                          <option value="BRL">BRL - Brazilian Real (R$)</option>
+                          <option value="TRY">TRY - Turkish Lira (₺)</option>
+                          <option value="RUB">RUB - Russian Ruble (₽)</option>
+                          <option value="PHP">PHP - Philippine Peso (₱)</option>
+                        </select>
+                      </div>
+
+                      <div className="h-px bg-border my-3" />
+
+                      <button
+                        onClick={() => {
+                          exportJSON(entries)
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <Download className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Export JSON</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          exportCSV(entries, generateCSV)
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <FileText className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Export CSV</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          importInputRef.current?.click()
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <Upload className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Import Data</span>
+                      </button>
+
+                      <div className="h-px bg-border my-3" />
+
+                      <button
+                        onClick={() => {
+                          toggleTheme()
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        {theme === "light" ? (
+                          <>
+                            <Moon className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            <span className="font-medium">Dark Mode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sun className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            <span className="font-medium">Light Mode</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                          setMenuOpen(false)
+                        }}
+                        disabled={vehicleData?.vehicles.length === 1}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                        <span className="font-medium text-destructive">Delete Vehicle</span>
+                      </button>
+                    </div>
+
+                    <div className="mt-auto px-3 pt-3 border-t">
+                      <button
+                        onClick={() => {
+                          setIsHelpOpen(true)
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <HelpCircle className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Help</span>
+                      </button>
+                    </div>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            )}
+          </div>
           <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-border rounded-lg">
             <div className="text-center space-y-4 max-w-md">
               <TrendingUp className="h-16 w-16 mx-auto text-muted-foreground" />
@@ -236,49 +522,166 @@ export default function OverviewPage() {
   if (!metrics) {
     return (
       <main className="min-h-screen bg-background">
+        <AppToolbar
+          vehicles={vehicleData.vehicles}
+          currentVehicleId={vehicleData.currentVehicleId}
+          onSelectVehicle={handleSelectVehicle}
+          onAddVehicle={handleAddVehicle}
+          onRenameVehicle={handleRenameVehicle}
+          onMenuClick={() => setMenuOpen(!menuOpen)}
+        />
         <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-          <div className="mb-8">
+          <div className="mb-8 flex items-start justify-between">
             <Link href="/">
               <Button variant="ghost" className="mb-4">
                 ← Back to Mileage Log
               </Button>
             </Link>
-            <div className="flex items-start justify-between flex-col md:flex-row gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground mb-2">Overview</h1>
-                <p className="text-muted-foreground">Dashboard metrics for your PHEV</p>
-              </div>
-              <div className="flex gap-2 items-center">
-                {availableYears.length > 1 && timeRange === "year" && (
-                  <Select
-                    value={selectedYear.toString()}
-                    onValueChange={(value) => setSelectedYear(Number.parseInt(value))}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableYears.map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Button variant={timeRange === "year" ? "default" : "outline"} onClick={() => setTimeRange("year")}>
-                  {availableYears.length > 1 ? "By Year" : "Last Year"}
-                </Button>
-                <Button
-                  variant={timeRange === "sixMonths" ? "default" : "outline"}
-                  onClick={() => setTimeRange("sixMonths")}
-                >
-                  Last 6 Months
-                </Button>
-              </div>
-            </div>
-          </div>
+            {entries.length > 0 && (
+              <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+                <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                  <nav className="flex flex-col h-full py-6">
+                    <div className="px-3 space-y-1">
+                      <Link
+                        href="/"
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 group"
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <List className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Mileage Log</span>
+                      </Link>
 
+                      <div className="h-px bg-border my-3" />
+
+                      <div className="px-4 py-3">
+                        <label className="text-sm font-medium text-muted-foreground mb-2 block">Currency Display</label>
+                        <select
+                          value={selectedCurrency}
+                          onChange={(e) => handleCurrencyChange(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                        >
+                          <option value="USD">USD - US Dollar ($)</option>
+                          <option value="EUR">EUR - Euro (€)</option>
+                          <option value="GBP">GBP - British Pound (£)</option>
+                          <option value="JPY">JPY - Japanese Yen (¥)</option>
+                          <option value="CNY">CNY - Chinese Yuan (¥)</option>
+                          <option value="INR">INR - Indian Rupee (₹)</option>
+                          <option value="AUD">AUD - Australian Dollar (A$)</option>
+                          <option value="CAD">CAD - Canadian Dollar (C$)</option>
+                          <option value="CHF">CHF - Swiss Franc (CHF)</option>
+                          <option value="KRW">KRW - South Korean Won (₩)</option>
+                          <option value="SGD">SGD - Singapore Dollar (S$)</option>
+                          <option value="HKD">HKD - Hong Kong Dollar (HK$)</option>
+                          <option value="SEK">SEK - Swedish Krona (kr)</option>
+                          <option value="NOK">NOK - Norwegian Krone (kr)</option>
+                          <option value="NZD">NZD - New Zealand Dollar (NZ$)</option>
+                          <option value="MXN">MXN - Mexican Peso (MX$)</option>
+                          <option value="ZAR">ZAR - South African Rand (R)</option>
+                          <option value="BRL">BRL - Brazilian Real (R$)</option>
+                          <option value="TRY">TRY - Turkish Lira (₺)</option>
+                          <option value="RUB">RUB - Russian Ruble (₽)</option>
+                          <option value="PHP">PHP - Philippine Peso (₱)</option>
+                        </select>
+                      </div>
+
+                      <div className="h-px bg-border my-3" />
+
+                      <button
+                        onClick={() => {
+                          exportJSON(entries)
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <Download className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Export JSON</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          exportCSV(entries, generateCSV)
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <FileText className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Export CSV</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          importInputRef.current?.click()
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <Upload className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Import Data</span>
+                      </button>
+
+                      <div className="h-px bg-border my-3" />
+
+                      <button
+                        onClick={() => {
+                          toggleTheme()
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        {theme === "light" ? (
+                          <>
+                            <Moon className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            <span className="font-medium">Dark Mode</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sun className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                            <span className="font-medium">Light Mode</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                          setMenuOpen(false)
+                        }}
+                        disabled={vehicleData?.vehicles.length === 1}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                        <span className="font-medium text-destructive">Delete Vehicle</span>
+                      </button>
+                    </div>
+
+                    <div className="mt-auto px-3 pt-3 border-t">
+                      <button
+                        onClick={() => {
+                          setIsHelpOpen(true)
+                          setMenuOpen(false)
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                      >
+                        <HelpCircle className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        <span className="font-medium">Help</span>
+                      </button>
+                    </div>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            )}
+          </div>
           <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-border rounded-lg">
             <div className="text-center space-y-4 max-w-md">
               <TrendingUp className="h-16 w-16 mx-auto text-muted-foreground" />
@@ -297,47 +700,165 @@ export default function OverviewPage() {
 
   return (
     <main className="min-h-screen bg-background">
+      <AppToolbar
+        vehicles={vehicleData.vehicles}
+        currentVehicleId={vehicleData.currentVehicleId}
+        onSelectVehicle={handleSelectVehicle}
+        onAddVehicle={handleAddVehicle}
+        onRenameVehicle={handleRenameVehicle}
+        onMenuClick={() => setMenuOpen(!menuOpen)}
+      />
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-        <div className="mb-8">
+        <div className="mb-8 flex items-start justify-between">
           <Link href="/">
             <Button variant="ghost" className="mb-4">
               ← Back to Mileage Log
             </Button>
           </Link>
-          <div className="flex items-start justify-between flex-col md:flex-row gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Overview</h1>
-              <p className="text-muted-foreground">Dashboard metrics for your PHEV</p>
-            </div>
-            <div className="flex gap-2 items-center">
-              {availableYears.length > 1 && timeRange === "year" && (
-                <Select
-                  value={selectedYear.toString()}
-                  onValueChange={(value) => setSelectedYear(Number.parseInt(value))}
-                >
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableYears.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <Button variant={timeRange === "year" ? "default" : "outline"} onClick={() => setTimeRange("year")}>
-                {availableYears.length > 1 ? "By Year" : "Last Year"}
-              </Button>
-              <Button
-                variant={timeRange === "sixMonths" ? "default" : "outline"}
-                onClick={() => setTimeRange("sixMonths")}
-              >
-                Last 6 Months
-              </Button>
-            </div>
-          </div>
+          {entries.length > 0 && (
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                <nav className="flex flex-col h-full py-6">
+                  <div className="px-3 space-y-1">
+                    <Link
+                      href="/"
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 group"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <List className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Mileage Log</span>
+                    </Link>
+
+                    <div className="h-px bg-border my-3" />
+
+                    <div className="px-4 py-3">
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Currency Display</label>
+                      <select
+                        value={selectedCurrency}
+                        onChange={(e) => handleCurrencyChange(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                      >
+                        <option value="USD">USD - US Dollar ($)</option>
+                        <option value="EUR">EUR - Euro (€)</option>
+                        <option value="GBP">GBP - British Pound (£)</option>
+                        <option value="JPY">JPY - Japanese Yen (¥)</option>
+                        <option value="CNY">CNY - Chinese Yuan (¥)</option>
+                        <option value="INR">INR - Indian Rupee (₹)</option>
+                        <option value="AUD">AUD - Australian Dollar (A$)</option>
+                        <option value="CAD">CAD - Canadian Dollar (C$)</option>
+                        <option value="CHF">CHF - Swiss Franc (CHF)</option>
+                        <option value="KRW">KRW - South Korean Won (₩)</option>
+                        <option value="SGD">SGD - Singapore Dollar (S$)</option>
+                        <option value="HKD">HKD - Hong Kong Dollar (HK$)</option>
+                        <option value="SEK">SEK - Swedish Krona (kr)</option>
+                        <option value="NOK">NOK - Norwegian Krone (kr)</option>
+                        <option value="NZD">NZD - New Zealand Dollar (NZ$)</option>
+                        <option value="MXN">MXN - Mexican Peso (MX$)</option>
+                        <option value="ZAR">ZAR - South African Rand (R)</option>
+                        <option value="BRL">BRL - Brazilian Real (R$)</option>
+                        <option value="TRY">TRY - Turkish Lira (₺)</option>
+                        <option value="RUB">RUB - Russian Ruble (₽)</option>
+                        <option value="PHP">PHP - Philippine Peso (₱)</option>
+                      </select>
+                    </div>
+
+                    <div className="h-px bg-border my-3" />
+
+                    <button
+                      onClick={() => {
+                        exportJSON(entries)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <Download className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Export JSON</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportCSV(entries, generateCSV)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <FileText className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Export CSV</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        importInputRef.current?.click()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <Upload className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Import Data</span>
+                    </button>
+
+                    <div className="h-px bg-border my-3" />
+
+                    <button
+                      onClick={() => {
+                        toggleTheme()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      {theme === "light" ? (
+                        <>
+                          <Moon className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          <span className="font-medium">Dark Mode</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sun className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          <span className="font-medium">Light Mode</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                        setMenuOpen(false)
+                      }}
+                      disabled={vehicleData?.vehicles.length === 1}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg
+                        className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                      <span className="font-medium text-destructive">Delete Vehicle</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-auto px-3 pt-3 border-t">
+                    <button
+                      onClick={() => {
+                        setIsHelpOpen(true)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <HelpCircle className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Help</span>
+                    </button>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
+          )}
         </div>
 
         {metrics && (
@@ -345,7 +866,9 @@ export default function OverviewPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-1.5">
-                  <CardTitle className="text-sm font-medium">Total Distance</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    {distanceView === "total" ? "Total Distance" : "Distance/Day"}
+                  </CardTitle>
                   <Popover
                     open={openPopover === "distance"}
                     onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
@@ -361,22 +884,55 @@ export default function OverviewPage() {
                         <p className="font-semibold">Total Distance:</p>
                         <p>Sum of all distances between entries</p>
                         <p className="text-xs">Distance = Current ODO - Previous ODO</p>
+                        <p className="text-xs mt-1">Distance/Day = Total Distance ÷ Total Days</p>
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <button
+                    onClick={() => setDistanceView(distanceView === "total" ? "perDay" : "total")}
+                    className="flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        distanceView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        distanceView === "perDay"
+                          ? "bg-primary border-primary"
+                          : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                  </button>
                 </div>
                 <Gauge className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{metrics.totalDistance.toFixed(0)} km</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {metrics.avgDistancePerDay.toFixed(1)} km/day average
-                </p>
-                {metrics.totalEvDistance > 0 && (
-                  <p className="text-xs text-muted-foreground">EV: {metrics.totalEvDistance.toFixed(0)} km</p>
-                )}
-                {metrics.totalHevDistance > 0 && (
-                  <p className="text-xs text-muted-foreground">HEV: {metrics.totalHevDistance.toFixed(0)} km</p>
+                {distanceView === "total" ? (
+                  <>
+                    <div className="text-2xl font-bold">{metrics.totalDistance.toFixed(0)} km</div>
+                    {metrics.totalEvDistance > 0 && (
+                      <p className="text-xs text-muted-foreground">EV: {metrics.totalEvDistance.toFixed(0)} km</p>
+                    )}
+                    {metrics.totalHevDistance > 0 && (
+                      <p className="text-xs text-muted-foreground">HEV: {metrics.totalHevDistance.toFixed(0)} km</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">{metrics.avgDistancePerDay.toFixed(1)} km/day</div>
+                    {metrics.totalEvDistance > 0 && metrics.totalDays > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        EV: {(metrics.totalEvDistance / metrics.totalDays).toFixed(1)} km/day
+                      </p>
+                    )}
+                    {metrics.totalHevDistance > 0 && metrics.totalDays > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        HEV: {(metrics.totalHevDistance / metrics.totalDays).toFixed(1)} km/day
+                      </p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -384,7 +940,9 @@ export default function OverviewPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="flex items-center gap-1.5">
-                  <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    {costView === "total" ? "Total Cost" : costView === "perKm" ? "Cost/km" : "Cost/Day"}
+                  </CardTitle>
                   <Popover
                     open={openPopover === "totalCost"}
                     onOpenChange={(open) => setOpenPopover(open ? "totalCost" : null)}
@@ -392,70 +950,107 @@ export default function OverviewPage() {
                     <PopoverTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
                         <Info className="h-3.5 w-3.5" />
-                        <span className="sr-only">Total cost info</span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto text-sm" align="start">
-                      <div className="space-y-1">
-                        <p className="font-semibold">Total Cost:</p>
-                        <p>Fuel Cost + Energy Cost</p>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₱{metrics.totalCost.toFixed(2)}</div>
-                <p className="text-xs text-muted-foreground mt-1">₱{metrics.avgCostPerDay.toFixed(2)}/day average</p>
-                <p className="text-xs text-muted-foreground">Fuel: ₱{metrics.totalFuelCost.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">Energy: ₱{metrics.totalEnergyCost.toFixed(2)}</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <CardTitle className="text-sm font-medium">Cost per km</CardTitle>
-                  <Popover
-                    open={openPopover === "costPerKm"}
-                    onOpenChange={(open) => setOpenPopover(open ? "costPerKm" : null)}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                        <Info className="h-3.5 w-3.5" />
-                        <span className="sr-only">Cost per km info</span>
+                        <span className="sr-only">Cost info</span>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto text-sm" align="start">
                       <div className="space-y-1.5">
-                        <p className="font-semibold">Cost per Kilometer:</p>
                         <div>
-                          <p className="text-xs font-medium">Combined:</p>
+                          <p className="font-semibold">Total Cost:</p>
+                          <p className="text-xs">Fuel Cost + Energy Cost</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold">Cost per km:</p>
                           <p className="text-xs">Total Cost ÷ Total Distance</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium">EV:</p>
-                          <p className="text-xs">Energy Cost ÷ EV Distance</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium">HEV:</p>
-                          <p className="text-xs">Fuel Cost ÷ HEV Distance</p>
+                          <p className="font-semibold">Cost per Day:</p>
+                          <p className="text-xs">Total Cost ÷ Total Days</p>
                         </div>
                       </div>
                     </PopoverContent>
                   </Popover>
+                  <button
+                    onClick={() => {
+                      if (costView === "total") setCostView("perKm")
+                      else if (costView === "perKm") setCostView("perDay")
+                      else setCostView("total")
+                    }}
+                    className="flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        costView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        costView === "perKm" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        costView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                  </button>
                 </div>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">₱{metrics.costPerKm.toFixed(2)}/km</div>
-                <p className="text-xs text-muted-foreground mt-1">Combined fuel and energy costs</p>
-                {metrics.evCostPerKm > 0 && (
-                  <p className="text-xs text-muted-foreground">EV: ₱{metrics.evCostPerKm.toFixed(2)}/km</p>
-                )}
-                {metrics.hevCostPerKm > 0 && (
-                  <p className="text-xs text-muted-foreground">HEV: ₱{metrics.hevCostPerKm.toFixed(2)}/km</p>
+                {costView === "total" ? (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {currencySymbol}
+                      {metrics.totalCost.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Fuel: {currencySymbol}
+                      {metrics.totalFuelCost.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Energy: {currencySymbol}
+                      {metrics.totalEnergyCost.toFixed(2)}
+                    </p>
+                  </>
+                ) : costView === "perKm" ? (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {currencySymbol}
+                      {metrics.costPerKm.toFixed(2)}/km
+                    </div>
+                    {metrics.evCostPerKm > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        EV: {currencySymbol}
+                        {metrics.evCostPerKm.toFixed(2)}/km
+                      </p>
+                    )}
+                    {metrics.hevCostPerKm > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        HEV: {currencySymbol}
+                        {metrics.hevCostPerKm.toFixed(2)}/km
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {currencySymbol}
+                      {metrics.avgCostPerDay.toFixed(2)}/day
+                    </div>
+                    {metrics.totalEnergyCost > 0 && metrics.totalDays > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Energy: {currencySymbol}
+                        {(metrics.totalEnergyCost / metrics.totalDays).toFixed(2)}/day
+                      </p>
+                    )}
+                    {metrics.totalFuelCost > 0 && metrics.totalDays > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Fuel: {currencySymbol}
+                        {(metrics.totalFuelCost / metrics.totalDays).toFixed(2)}/day
+                      </p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -619,6 +1214,25 @@ export default function OverviewPage() {
           </div>
         )}
       </div>
+      <AlertDialog open={deleteVehicleConfirm !== null} onOpenChange={() => setDeleteVehicleConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Vehicle?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the vehicle and all its mileage entries.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVehicle}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Vehicle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Footer />
     </main>
   )
