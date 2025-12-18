@@ -19,6 +19,7 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
   const [openPopover, setOpenPopover] = useState<string | null>(null)
   const [showDistancePerDay, setShowDistancePerDay] = useState(false)
   const [costView, setCostView] = useState<"total" | "perKm" | "perDay">("total")
+  const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
 
   const sortedEntries = useMemo(() => {
     return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -48,6 +49,13 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
         distancePerDay: 0,
         evDistancePerDay: 0,
         hevDistancePerDay: 0,
+        litersPer100km: 0,
+        whPerKm: 0,
+        kwhPer100km: 0,
+        evWhPerKm: 0,
+        evKwhPer100km: 0,
+        hevLitersPer100km: 0,
+        evEquivalentLitersPer100km: 0,
       }
     }
 
@@ -83,6 +91,14 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
     const evEquivalentKmPerLiter = costPerLiter > 0 && evDistance > 0 ? evDistance / (energyCost / costPerLiter) : 0
     const hevKmPerLiter = entry.fuelAmount > 0 && hevDistance > 0 ? hevDistance / entry.fuelAmount : 0
 
+    const litersPer100km = distance > 0 && kmPerLiter > 0 ? 100 / kmPerLiter : 0
+    const whPerKm = energy > 0 && distance > 0 ? (energy * 1000) / distance : 0
+    const kwhPer100km = distance > 0 && energy > 0 ? (energy * 100) / distance : 0
+    const evWhPerKm = energy > 0 && evDistance > 0 ? (energy * 1000) / evDistance : 0
+    const evKwhPer100km = energy > 0 && evDistance > 0 ? (energy * 100) / evDistance : 0
+    const hevLitersPer100km = hevDistance > 0 && hevKmPerLiter > 0 ? 100 / hevKmPerLiter : 0
+    const evEquivalentLitersPer100km = evEquivalentKmPerLiter > 0 ? 100 / evEquivalentKmPerLiter : 0
+
     return {
       distance,
       hevDistance,
@@ -105,6 +121,13 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
       distancePerDay,
       evDistancePerDay,
       hevDistancePerDay,
+      litersPer100km,
+      whPerKm,
+      kwhPer100km,
+      evWhPerKm,
+      evKwhPer100km,
+      hevLitersPer100km,
+      evEquivalentLitersPer100km,
     }
   }
 
@@ -236,8 +259,29 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                   </div>
                 </TableHead>
                 <TableHead className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    Efficiency
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+                      className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+                    >
+                      Efficiency
+                      <div className="flex gap-0.5">
+                        <div
+                          className={`h-1.5 w-1.5 rounded-full border ${
+                            efficiencyUnit === "kmPer"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                        <div
+                          className={`h-1.5 w-1.5 rounded-full border ${
+                            efficiencyUnit === "per100"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                      </div>
+                    </button>
                     <Popover
                       open={openPopover === "efficiency"}
                       onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
@@ -251,22 +295,45 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                       <PopoverContent className="w-auto text-sm" align="end">
                         <div className="space-y-1.5">
                           <p className="font-semibold">Efficiency Metrics:</p>
-                          <div>
-                            <p className="text-xs font-medium">Combined km/L:</p>
-                            <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium">EV km/kWh:</p>
-                            <p className="text-xs">EV Distance ÷ Energy (kWh)</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium">EV as km/L*:</p>
-                            <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium">HEV km/L:</p>
-                            <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
-                          </div>
+                          {efficiencyUnit === "kmPer" ? (
+                            <>
+                              <div>
+                                <p className="text-xs font-medium">Combined km/L:</p>
+                                <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV Wh/km:</p>
+                                <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV as km/L*:</p>
+                                <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">HEV km/L:</p>
+                                <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <p className="text-xs font-medium">Combined L/100km:</p>
+                                <p className="text-xs">100 ÷ Combined km/L</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV kWh/100km:</p>
+                                <p className="text-xs">Energy × 100 ÷ EV Distance</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV as L/100km*:</p>
+                                <p className="text-xs">Cost-equivalent: 100 ÷ EV km/L*</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">HEV L/100km:</p>
+                                <p className="text-xs">100 ÷ HEV km/L</p>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -418,23 +485,48 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                       )}
                     </TableCell>
                     <TableCell className="align-top">
-                      <p className="text-right">
-                        {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
-                      </p>
-                      {calculated.evKmPerKwh > 0 && (
-                        <p className="text-sm text-muted-foreground text-right">
-                          EV {calculated.evKmPerKwh.toFixed(2)} km/kWh
-                        </p>
-                      )}
-                      {calculated.evEquivalentKmPerLiter > 0 && (
-                        <p className="text-sm text-muted-foreground text-right">
-                          EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
-                        </p>
-                      )}
-                      {calculated.hevKmPerLiter > 0 && (
-                        <p className="text-sm text-muted-foreground text-right">
-                          HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
-                        </p>
+                      {efficiencyUnit === "kmPer" ? (
+                        <>
+                          <p className="text-right">
+                            {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
+                          </p>
+                          {calculated.evWhPerKm > 0 && (
+                            <p className="text-sm text-muted-foreground text-right">
+                              EV {calculated.evWhPerKm.toFixed(0)} Wh/km
+                            </p>
+                          )}
+                          {calculated.evEquivalentKmPerLiter > 0 && (
+                            <p className="text-sm text-muted-foreground text-right">
+                              EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
+                            </p>
+                          )}
+                          {calculated.hevKmPerLiter > 0 && (
+                            <p className="text-sm text-muted-foreground text-right">
+                              HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-right">
+                            {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
+                          </p>
+                          {calculated.evKwhPer100km > 0 && (
+                            <p className="text-sm text-muted-foreground text-right">
+                              EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
+                            </p>
+                          )}
+                          {calculated.evEquivalentLitersPer100km > 0 && (
+                            <p className="text-sm text-muted-foreground text-right">
+                              EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
+                            </p>
+                          )}
+                          {calculated.hevLitersPer100km > 0 && (
+                            <p className="text-sm text-muted-foreground text-right">
+                              HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
+                            </p>
+                          )}
+                        </>
                       )}
                     </TableCell>
                     <TableCell className="align-top">
@@ -458,24 +550,34 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
       </div>
 
       <div className="md:hidden space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-2 mb-4">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowDistancePerDay(!showDistancePerDay)}
             className="flex-1"
           >
-            {showDistancePerDay ? "Show Total Distance" : "Show Distance/Day"}
+            Distance: {showDistancePerDay ? "Per Day" : "Total"}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              setCostView((prev) => (prev === "total" ? "perKm" : prev === "perKm" ? "perDay" : "total"))
+              if (costView === "total") setCostView("perKm")
+              else if (costView === "perKm") setCostView("perDay")
+              else setCostView("total")
             }}
             className="flex-1"
           >
-            {costView === "total" ? "Show ₱/km" : costView === "perKm" ? "Show ₱/day" : "Show Total Cost"}
+            Cost: {costView === "total" ? "Total" : costView === "perKm" ? "Per km" : "Per Day"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+            className="flex-1"
+          >
+            {efficiencyUnit === "kmPer" ? "km/L, Wh/km" : "L/100km, kWh/100km"}
           </Button>
         </div>
         {sortedEntries.map((entry, index) => {
@@ -700,33 +802,53 @@ export function MileageTable({ entries, onDelete, onEdit }: MileageTableProps) {
                     </>
                   )}
 
-                  {calculated.kmPerLiter > 0 && (
-                    <>
-                      <div className="text-muted-foreground">Combined km/L</div>
-                      <div className="text-right">{calculated.kmPerLiter.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.evKmPerKwh > 0 && (
-                    <>
-                      <div className="text-muted-foreground">EV km/kWh</div>
-                      <div className="text-right">{calculated.evKmPerKwh.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.evEquivalentKmPerLiter > 0 && (
-                    <>
-                      <div className="text-muted-foreground">EV km/L*</div>
-                      <div className="text-right">{calculated.evEquivalentKmPerLiter.toFixed(2)}</div>
-                    </>
-                  )}
-
-                  {calculated.hevKmPerLiter > 0 && (
-                    <>
-                      <div className="text-muted-foreground">HEV km/L</div>
-                      <div className="text-right">{calculated.hevKmPerLiter.toFixed(2)}</div>
-                    </>
-                  )}
+                  <div className="col-span-2">
+                    <dt className="text-sm font-medium text-muted-foreground">Efficiency</dt>
+                    <dd className="text-sm">
+                      {efficiencyUnit === "kmPer" ? (
+                        <>
+                          {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
+                          {calculated.evWhPerKm > 0 && (
+                            <span className="text-muted-foreground"> • EV {calculated.evWhPerKm.toFixed(0)} Wh/km</span>
+                          )}
+                          {calculated.evEquivalentKmPerLiter > 0 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
+                            </span>
+                          )}
+                          {calculated.hevKmPerLiter > 0 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
+                          {calculated.evKwhPer100km > 0 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
+                            </span>
+                          )}
+                          {calculated.evEquivalentLitersPer100km > 0 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
+                            </span>
+                          )}
+                          {calculated.hevLitersPer100km > 0 && (
+                            <span className="text-muted-foreground">
+                              {" "}
+                              • HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </dd>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -764,6 +886,13 @@ export function generateCSV(entries: MileageEntry[]): string {
         distancePerDay: 0,
         evDistancePerDay: 0,
         hevDistancePerDay: 0,
+        litersPer100km: 0,
+        whPerKm: 0,
+        kwhPer100km: 0,
+        evWhPerKm: 0,
+        evKwhPer100km: 0,
+        hevLitersPer100km: 0,
+        evEquivalentLitersPer100km: 0,
       }
     }
 
@@ -798,6 +927,14 @@ export function generateCSV(entries: MileageEntry[]): string {
     const evEquivalentKmPerLiter = costPerLiter > 0 && evDistance > 0 ? evDistance / (energyCost / costPerLiter) : 0
     const hevKmPerLiter = entry.fuelAmount > 0 && hevDistance > 0 ? hevDistance / entry.fuelAmount : 0
 
+    const litersPer100km = distance > 0 && kmPerLiter > 0 ? 100 / kmPerLiter : 0
+    const whPerKm = energy > 0 && distance > 0 ? (energy * 1000) / distance : 0
+    const kwhPer100km = distance > 0 && energy > 0 ? (energy * 100) / distance : 0
+    const evWhPerKm = energy > 0 && evDistance > 0 ? (energy * 1000) / evDistance : 0
+    const evKwhPer100km = energy > 0 && evDistance > 0 ? (energy * 100) / evDistance : 0
+    const hevLitersPer100km = hevDistance > 0 && hevKmPerLiter > 0 ? 100 / hevKmPerLiter : 0
+    const evEquivalentLitersPer100km = evEquivalentKmPerLiter > 0 ? 100 / evEquivalentKmPerLiter : 0
+
     return {
       distance,
       hevDistance,
@@ -820,6 +957,13 @@ export function generateCSV(entries: MileageEntry[]): string {
       distancePerDay,
       evDistancePerDay,
       hevDistancePerDay,
+      litersPer100km,
+      whPerKm,
+      kwhPer100km,
+      evWhPerKm,
+      evKwhPer100km,
+      hevLitersPer100km,
+      evEquivalentLitersPer100km,
     }
   }
 
@@ -847,9 +991,13 @@ export function generateCSV(entries: MileageEntry[]): string {
     "EV Cost per km (₱/km)",
     "HEV Cost per km (₱/km)",
     "Combined km/L",
-    "EV km/kWh",
+    "Combined L/100km",
+    "EV Wh/km",
+    "EV kWh/100km",
     "EV km/L equivalent",
+    "EV L/100km equivalent*",
     "HEV km/L",
+    "HEV L/100km",
     "Distance/day (km/d)",
     "EV Distance/day (km/d)",
     "HEV Distance/day (km/d)",
@@ -883,9 +1031,13 @@ export function generateCSV(entries: MileageEntry[]): string {
       calc.evCostPerKm > 0 ? calc.evCostPerKm.toFixed(2) : "",
       calc.hevCostPerKm > 0 ? calc.hevCostPerKm.toFixed(2) : "",
       calc.kmPerLiter > 0 ? calc.kmPerLiter.toFixed(2) : "",
-      calc.evKmPerKwh > 0 ? calc.evKmPerKwh.toFixed(2) : "",
+      calc.litersPer100km > 0 ? calc.litersPer100km.toFixed(2) : "",
+      calc.evWhPerKm > 0 ? calc.evWhPerKm.toFixed(0) : "",
+      calc.evKwhPer100km > 0 ? calc.evKwhPer100km.toFixed(2) : "",
       calc.evEquivalentKmPerLiter > 0 ? calc.evEquivalentKmPerLiter.toFixed(2) : "",
+      calc.evEquivalentLitersPer100km > 0 ? calc.evEquivalentLitersPer100km.toFixed(2) : "",
       calc.hevKmPerLiter > 0 ? calc.hevKmPerLiter.toFixed(2) : "",
+      calc.hevLitersPer100km > 0 ? calc.hevLitersPer100km.toFixed(2) : "",
       calc.distancePerDay > 0 ? calc.distancePerDay.toFixed(1) : "",
       calc.evDistancePerDay > 0 ? calc.evDistancePerDay.toFixed(1) : "",
       calc.hevDistancePerDay > 0 ? calc.hevDistancePerDay.toFixed(1) : "",

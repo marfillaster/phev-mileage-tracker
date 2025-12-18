@@ -14,13 +14,12 @@ export default function OverviewPage() {
   const [entries, setEntries] = useState<MileageEntry[]>([])
   const [timeRange, setTimeRange] = useState<TimeRange>("year")
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
 
   useEffect(() => {
     const stored = localStorage.getItem("phev-mileage-entries")
-    console.log("[v0] Stored entries:", stored)
     if (stored) {
       const parsedEntries = JSON.parse(stored)
-      console.log("[v0] Parsed entries:", parsedEntries.length, "entries")
       setEntries(parsedEntries)
     }
   }, [])
@@ -119,14 +118,14 @@ export default function OverviewPage() {
     const avgDistancePerDay = totalDays > 0 ? totalDistance / totalDays : 0
     const avgCostPerDay = totalDays > 0 ? totalCost / totalDays : 0
 
-    const costPerLiter = totalFuelAmount > 0 ? totalFuelCost / totalFuelAmount : 0
-    const energyEquivalentLiters = costPerLiter > 0 ? totalEnergyCost / costPerLiter : 0
-    const combinedKmPerLiter =
-      totalFuelAmount + energyEquivalentLiters > 0 ? totalDistance / (totalFuelAmount + energyEquivalentLiters) : 0
-    const evEquivalentKmPerLiter =
-      costPerLiter > 0 && evEnergy > 0 && totalEvDistance > 0
-        ? totalEvDistance / ((evEnergy * (totalEnergyCost / totalEnergy)) / costPerLiter)
-        : 0
+    const combinedKmPerLiter = fuelEfficiency
+    const evEquivalentKmPerLiter = evEfficiency * filtered[filtered.length - 1].energyTariff
+
+    const litersPer100km = combinedKmPerLiter > 0 ? 100 / combinedKmPerLiter : 0
+    const hevLitersPer100km = hevFuelEfficiency > 0 ? 100 / hevFuelEfficiency : 0
+    const evKwhPer100km = evEfficiency > 0 ? 100 / evEfficiency : 0
+    const evWhPerKm = evEfficiency > 0 ? 1000 / evEfficiency : 0
+    const evEquivalentLitersPer100km = evEquivalentKmPerLiter > 0 ? 100 / evEquivalentKmPerLiter : 0
 
     return {
       totalDistance,
@@ -151,15 +150,15 @@ export default function OverviewPage() {
       entryCount: filtered.length,
       hevFuelAmount,
       evEnergy,
+      litersPer100km,
+      hevLitersPer100km,
+      evKwhPer100km,
+      evWhPerKm,
+      evEquivalentLitersPer100km,
     }
   }
 
   const metrics = calculateMetrics()
-
-  console.log("[v0] Entries length:", entries.length)
-  console.log("[v0] Metrics:", metrics)
-  console.log("[v0] Time range:", timeRange)
-  console.log("[v0] Selected year:", selectedYear)
 
   if (entries.length < 3) {
     return (
@@ -352,8 +351,29 @@ export default function OverviewPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Efficiency & Consumption</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  Efficiency & Consumption
+                  <button
+                    onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+                    className="flex gap-1 ml-2"
+                    type="button"
+                  >
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        efficiencyUnit === "kmPer"
+                          ? "bg-primary border-primary"
+                          : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${
+                        efficiencyUnit === "per100"
+                          ? "bg-primary border-primary"
+                          : "bg-background border-muted-foreground"
+                      }`}
+                    />
+                  </button>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -362,7 +382,11 @@ export default function OverviewPage() {
                       <Gauge className="h-3 w-3" />
                       <span className="text-xs">Combined</span>
                     </div>
-                    <div className="text-lg font-bold">{metrics.combinedKmPerLiter.toFixed(2)} km/L</div>
+                    <div className="text-lg font-bold">
+                      {efficiencyUnit === "kmPer"
+                        ? `${metrics.combinedKmPerLiter.toFixed(2)} km/L`
+                        : `${metrics.litersPer100km.toFixed(2)} L/100km`}
+                    </div>
                     <p className="text-xs text-muted-foreground">Fuel + energy cost equivalent</p>
                   </div>
 
@@ -372,7 +396,11 @@ export default function OverviewPage() {
                       <span className="text-xs">HEV Fuel</span>
                     </div>
                     <div className="text-lg font-bold">
-                      {metrics.hevFuelEfficiency > 0 ? `${metrics.hevFuelEfficiency.toFixed(2)} km/L` : "No HEV data"}
+                      {metrics.hevFuelEfficiency > 0
+                        ? efficiencyUnit === "kmPer"
+                          ? `${metrics.hevFuelEfficiency.toFixed(2)} km/L`
+                          : `${metrics.hevLitersPer100km.toFixed(2)} L/100km`
+                        : "No HEV data"}
                     </div>
                     <p className="text-xs text-muted-foreground">{metrics.hevFuelAmount.toFixed(1)} L consumed</p>
                   </div>
@@ -383,7 +411,11 @@ export default function OverviewPage() {
                       <span className="text-xs">EV Energy</span>
                     </div>
                     <div className="text-lg font-bold">
-                      {metrics.evEfficiency > 0 ? `${metrics.evEfficiency.toFixed(2)} km/kWh` : "No EV data"}
+                      {metrics.evEfficiency > 0
+                        ? efficiencyUnit === "kmPer"
+                          ? `${metrics.evWhPerKm.toFixed(0)} Wh/km`
+                          : `${metrics.evKwhPer100km.toFixed(2)} kWh/100km`
+                        : "No EV data"}
                     </div>
                     <p className="text-xs text-muted-foreground">{metrics.evEnergy.toFixed(1)} kWh consumed</p>
                   </div>
@@ -392,9 +424,13 @@ export default function OverviewPage() {
                     <div>
                       <div className="flex items-center gap-1 text-muted-foreground mb-1">
                         <Zap className="h-3 w-3" />
-                        <span className="text-xs">EV as km/L</span>
+                        <span className="text-xs">EV as {efficiencyUnit === "kmPer" ? "km/L" : "L/100km"}</span>
                       </div>
-                      <div className="text-lg font-bold">{metrics.evEquivalentKmPerLiter.toFixed(2)} km/L*</div>
+                      <div className="text-lg font-bold">
+                        {efficiencyUnit === "kmPer"
+                          ? `${metrics.evEquivalentKmPerLiter.toFixed(2)} km/L*`
+                          : `${metrics.evEquivalentLitersPer100km.toFixed(2)} L/100km*`}
+                      </div>
                       <p className="text-xs text-muted-foreground">Cost-equivalent efficiency</p>
                     </div>
                   )}
