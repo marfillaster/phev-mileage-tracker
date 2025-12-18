@@ -377,6 +377,7 @@ export default function Overview() {
                           value={selectedCurrency}
                           onChange={(e) => handleCurrencyChange(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                          tabIndex={-1}
                         >
                           <option value="USD">USD - US Dollar ($)</option>
                           <option value="EUR">EUR - Euro (€)</option>
@@ -559,6 +560,7 @@ export default function Overview() {
                           value={selectedCurrency}
                           onChange={(e) => handleCurrencyChange(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                          tabIndex={-1}
                         >
                           <option value="USD">USD - US Dollar ($)</option>
                           <option value="EUR">EUR - Euro (€)</option>
@@ -737,6 +739,7 @@ export default function Overview() {
                         value={selectedCurrency}
                         onChange={(e) => handleCurrencyChange(e.target.value)}
                         className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                        tabIndex={-1}
                       >
                         <option value="USD">USD - US Dollar ($)</option>
                         <option value="EUR">EUR - Euro (€)</option>
