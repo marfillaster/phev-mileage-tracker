@@ -612,13 +612,17 @@ export default function MileageTracker() {
 
         <MileageEntryForm
           open={isFormOpen}
-          onClose={handleCloseForm}
-          onSubmit={handleAddEntry}
+          onClose={() => {
+            setIsFormOpen(false)
+            setEditingEntry(null)
+          }}
+          onSubmit={editingEntry ? handleAddEntry : handleAddEntry}
           editEntry={editingEntry}
           onNavigatePrevious={handleNavigatePrevious}
           onNavigateNext={handleNavigateNext}
-          hasPrevious={navigationState.hasPrevious}
-          hasNext={navigationState.hasNext}
+          {...navigationState}
+          currency={selectedCurrency}
+          entries={entries}
         />
         <InstallPrompt />
         <HelpInstructions open={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
