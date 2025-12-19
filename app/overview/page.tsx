@@ -71,13 +71,15 @@ export default function Overview() {
 
   useEffect(() => {
     const data = loadVehicleData()
+    
     if (data) {
       setVehicleData(data)
       const currentVehicle = data.vehicles.find((v) => v.id === data.currentVehicleId)
       if (currentVehicle) {
-        setEntries(currentVehicle.entries)
-        if (currentVehicle.entries.length > 0) {
-          const sorted = [...currentVehicle.entries].sort(
+
+        setEntries(data.entries[currentVehicle.id])
+        if (data.entries[currentVehicle.id] && data.entries[currentVehicle.id].length > 0) {
+          const sorted = [...data.entries[currentVehicle.id]].sort(
             (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
           )
           const mostRecentYear = new Date(sorted[0].date).getFullYear()
@@ -423,6 +425,7 @@ export default function Overview() {
     }
   }
 
+  console.log("[v0] Rendering Overview with entries:", entries.length);
   const metrics = entries && Array.isArray(entries) && entries.length > 0 ? calculateMetrics(entries) : null
 
   const currentVehicle = vehicleData?.vehicles.find((v) => v.id === vehicleData.currentVehicleId)
@@ -447,7 +450,7 @@ export default function Overview() {
     )
   }
 
-  if (!entries || entries.length < 3) {
+  if (!entries) {
     return (
       <main className="min-h-screen bg-background">
         <AppToolbar
@@ -646,8 +649,7 @@ export default function Overview() {
               <TrendingUp className="h-16 w-16 mx-auto text-muted-foreground" />
               <h3 className="text-xl font-semibold text-foreground">Not enough data yet</h3>
               <p className="text-muted-foreground">
-                You need at least 3 mileage entries to view dashboard metrics. Add more entries in the Mileage Log to
-                see your vehicle's performance overview.
+                Add more entries in the Mileage Log to see your vehicle's performance overview.
               </p>
               <Link href="/">
                 <Button size="lg">Go to Mileage Log</Button>
