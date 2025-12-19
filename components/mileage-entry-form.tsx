@@ -36,6 +36,8 @@ export function MileageEntryForm({
   currency = "PHP",
   entries = [],
 }: MileageEntryFormProps) {
+  const [animationDirection, setAnimationDirection] = useState<"left" | "right" | null>(null)
+
   const getLatestEntry = () => {
     if (entries.length === 0) return null
     const sortedEntries = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -87,6 +89,10 @@ export function MileageEntryForm({
       })
     }
     setErrors({})
+    if (animationDirection) {
+      const timer = setTimeout(() => setAnimationDirection(null), 300)
+      return () => clearTimeout(timer)
+    }
   }, [editEntry, open])
 
   const validateForm = (): boolean => {
@@ -202,6 +208,16 @@ export function MileageEntryForm({
     }
   }
 
+  const handleNavigatePrevious = () => {
+    setAnimationDirection("right")
+    onNavigatePrevious?.()
+  }
+
+  const handleNavigateNext = () => {
+    setAnimationDirection("left")
+    onNavigateNext?.()
+  }
+
   const currencySymbol = getCurrencySymbol(currency)
 
   const FieldHelp = ({ content }: { content: string }) => (
@@ -231,7 +247,7 @@ export function MileageEntryForm({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={onNavigatePrevious}
+                    onClick={handleNavigatePrevious}
                     disabled={!hasPrevious}
                     className="shrink-0"
                   >
@@ -251,7 +267,7 @@ export function MileageEntryForm({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={onNavigateNext}
+                    onClick={handleNavigateNext}
                     disabled={!hasNext}
                     className="shrink-0"
                   >
@@ -268,172 +284,182 @@ export function MileageEntryForm({
               : "Add a new mileage entry with ODO readings, fuel, and energy data"}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {errors.general && (
-            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">{errors.general}</div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="date" className="flex items-center">
-              Date <span className="text-destructive">*</span>
-              <FieldHelp content="The date when you recorded the mileage readings. Pre-filled with today's date." />
-            </Label>
-            <Input
-              id="date"
-              type="date"
-              value={formData.date}
-              onChange={(e) => handleChange("date", e.target.value)}
-              required
-            />
-            {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label className="flex items-center">
-              ODO Readings (km)
-              <FieldHelp content="Total distance readings from your vehicle's dashboard. ODO must equal HEV ODO + EV ODO. Find these readings on your instrument cluster." />
-            </Label>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <Label htmlFor="odo" className="text-xs">
-                  ODO <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="odo"
-                  type="number"
-                  step="0.1"
-                  value={formData.odo}
-                  onChange={(e) => handleChange("odo", e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="hevOdo" className="text-xs">
-                  HEV ODO <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="hevOdo"
-                  type="number"
-                  step="0.1"
-                  value={formData.hevOdo}
-                  onChange={(e) => handleChange("hevOdo", e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="evOdo" className="text-xs">
-                  EV ODO <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="evOdo"
-                  type="number"
-                  step="0.1"
-                  value={formData.evOdo}
-                  onChange={(e) => handleChange("evOdo", e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            {(errors.odo || errors.hevOdo || errors.evOdo) && (
-              <div className="space-y-1">
-                {errors.odo && <p className="text-sm text-destructive">{errors.odo}</p>}
-                {errors.hevOdo && <p className="text-sm text-destructive">{errors.hevOdo}</p>}
-                {errors.evOdo && <p className="text-sm text-destructive">{errors.evOdo}</p>}
-              </div>
+        <div
+          className={`${
+            animationDirection === "left"
+              ? "animate-slide-in-left"
+              : animationDirection === "right"
+                ? "animate-slide-in-right"
+                : ""
+          }`}
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {errors.general && (
+              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">{errors.general}</div>
             )}
-          </div>
 
-          <div className="space-y-2">
-            <Label className="flex items-center">
-              Fuel
-              <FieldHelp content="Amount of gasoline refueled in liters. Find this on your fuel receipt at the gas station." />
-            </Label>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label htmlFor="fuelAmount" className="text-xs">
-                  Amount (L) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="fuelAmount"
-                  type="number"
-                  step="0.01"
-                  value={formData.fuelAmount}
-                  onChange={(e) => handleChange("fuelAmount", e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="fuelCost" className="text-xs">
-                  Cost ({currencySymbol}) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="fuelCost"
-                  type="number"
-                  step="0.01"
-                  value={formData.fuelCost}
-                  onChange={(e) => handleChange("fuelCost", e.target.value)}
-                  required
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="date" className="flex items-center">
+                Date <span className="text-destructive">*</span>
+                <FieldHelp content="The date when you recorded the mileage readings. Pre-filled with today's date." />
+              </Label>
+              <Input
+                id="date"
+                type="date"
+                value={formData.date}
+                onChange={(e) => handleChange("date", e.target.value)}
+                required
+              />
+              {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
             </div>
-            {(errors.fuelAmount || errors.fuelCost) && (
-              <div className="space-y-1">
-                {errors.fuelAmount && <p className="text-sm text-destructive">{errors.fuelAmount}</p>}
-                {errors.fuelCost && <p className="text-sm text-destructive">{errors.fuelCost}</p>}
-              </div>
-            )}
-          </div>
 
-          <div className="space-y-2">
-            <Label className="flex items-center">
-              Energy
-              <FieldHelp content="Amount of cumulative electricity charged (kWh) and the tariff rate. Find plug-in amount in your vehicle's infotainment energy settings page. Check your electric bill for the tariff rate per kWh." />
-            </Label>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <Label htmlFor="pluginAmount" className="text-xs">
-                  Plug-in (kWh) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="pluginAmount"
-                  type="number"
-                  step="0.01"
-                  value={formData.pluginAmount}
-                  onChange={(e) => handleChange("pluginAmount", e.target.value)}
-                  required
-                />
+            <div className="space-y-2">
+              <Label className="flex items-center">
+                ODO Readings (km)
+                <FieldHelp content="Total distance readings from your vehicle's dashboard. ODO must equal HEV ODO + EV ODO. Find these readings on your instrument cluster." />
+              </Label>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label htmlFor="odo" className="text-xs">
+                    ODO <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="odo"
+                    type="number"
+                    step="0.1"
+                    value={formData.odo}
+                    onChange={(e) => handleChange("odo", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="hevOdo" className="text-xs">
+                    HEV ODO <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="hevOdo"
+                    type="number"
+                    step="0.1"
+                    value={formData.hevOdo}
+                    onChange={(e) => handleChange("hevOdo", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="evOdo" className="text-xs">
+                    EV ODO <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="evOdo"
+                    type="number"
+                    step="0.1"
+                    value={formData.evOdo}
+                    onChange={(e) => handleChange("evOdo", e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="energyTariff" className="text-xs">
-                  Tariff ({currencySymbol}/kWh) <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="energyTariff"
-                  type="number"
-                  step="0.01"
-                  value={formData.energyTariff}
-                  onChange={(e) => handleChange("energyTariff", e.target.value)}
-                  required
-                />
-              </div>
+              {(errors.odo || errors.hevOdo || errors.evOdo) && (
+                <div className="space-y-1">
+                  {errors.odo && <p className="text-sm text-destructive">{errors.odo}</p>}
+                  {errors.hevOdo && <p className="text-sm text-destructive">{errors.hevOdo}</p>}
+                  {errors.evOdo && <p className="text-sm text-destructive">{errors.evOdo}</p>}
+                </div>
+              )}
             </div>
-            {(errors.pluginAmount || errors.energyTariff) && (
-              <div className="space-y-1">
-                {errors.pluginAmount && <p className="text-sm text-destructive">{errors.pluginAmount}</p>}
-                {errors.energyTariff && <p className="text-sm text-destructive">{errors.energyTariff}</p>}
-              </div>
-            )}
-          </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" className="flex-1">
-              {editEntry ? "Update Entry" : "Add Entry"}
-            </Button>
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
-              Cancel
-            </Button>
-          </div>
-        </form>
+            <div className="space-y-2">
+              <Label className="flex items-center">
+                Fuel
+                <FieldHelp content="Amount of gasoline refueled in liters. Find this on your fuel receipt at the gas station." />
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="fuelAmount" className="text-xs">
+                    Amount (L) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="fuelAmount"
+                    type="number"
+                    step="0.01"
+                    value={formData.fuelAmount}
+                    onChange={(e) => handleChange("fuelAmount", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="fuelCost" className="text-xs">
+                    Cost ({currencySymbol}) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="fuelCost"
+                    type="number"
+                    step="0.01"
+                    value={formData.fuelCost}
+                    onChange={(e) => handleChange("fuelCost", e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              {(errors.fuelAmount || errors.fuelCost) && (
+                <div className="space-y-1">
+                  {errors.fuelAmount && <p className="text-sm text-destructive">{errors.fuelAmount}</p>}
+                  {errors.fuelCost && <p className="text-sm text-destructive">{errors.fuelCost}</p>}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center">
+                Energy
+                <FieldHelp content="Amount of cumulative electricity charged (kWh) and the tariff rate. Find plug-in amount in your vehicle's infotainment energy settings page. Check your electric bill for the tariff rate per kWh." />
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="pluginAmount" className="text-xs">
+                    Plug-in (kWh) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="pluginAmount"
+                    type="number"
+                    step="0.01"
+                    value={formData.pluginAmount}
+                    onChange={(e) => handleChange("pluginAmount", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="energyTariff" className="text-xs">
+                    Tariff ({currencySymbol}/kWh) <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="energyTariff"
+                    type="number"
+                    step="0.01"
+                    value={formData.energyTariff}
+                    onChange={(e) => handleChange("energyTariff", e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              {(errors.pluginAmount || errors.energyTariff) && (
+                <div className="space-y-1">
+                  {errors.pluginAmount && <p className="text-sm text-destructive">{errors.pluginAmount}</p>}
+                  {errors.energyTariff && <p className="text-sm text-destructive">{errors.energyTariff}</p>}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" className="flex-1">
+                {editEntry ? "Update Entry" : "Add Entry"}
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose} className="flex-1 bg-transparent">
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
