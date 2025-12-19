@@ -590,7 +590,7 @@ export default function MileageTracker() {
   const navigationState = getNavigationState()
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className="min-h-screen bg-background overflow-y-auto">
       <AppToolbar
         vehicles={vehicleData.vehicles}
         currentVehicleId={vehicleData.currentVehicleId}
@@ -600,7 +600,7 @@ export default function MileageTracker() {
         onMenuClick={() => setMenuOpen(!menuOpen)}
       />
 
-      <div className="container mx-auto p-4 md:p-8 max-w-7xl pt-4 pb-24">
+      <div className="container mx-auto p-4 md:p-8 max-w-7xl pt-20 pb-28">
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Mileage Log</h1>

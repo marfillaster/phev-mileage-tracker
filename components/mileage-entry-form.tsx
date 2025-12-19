@@ -309,6 +309,7 @@ export function MileageEntryForm({
                 value={formData.date}
                 onChange={(e) => handleChange("date", e.target.value)}
                 required
+                className="w-full max-w-full"
               />
               {errors.date && <p className="text-sm text-destructive">{errors.date}</p>}
             </div>
