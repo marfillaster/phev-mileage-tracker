@@ -17,12 +17,12 @@ A web app for tracking Plug-in Hybrid Electric Vehicle mileage, fuel consumption
 
 ## Quick Start
 
-```bash
+\`\`\`bash
 git clone https://github.com/marfillaster/phev-mileage-tracker.git
 cd phev-mileage-tracker
 npm install
 npm run dev
-```
+\`\`\`
 
 Or deploy instantly: [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/marfillaster/phev-mileage-tracker)
 
