@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const SW_VERSION = "1.0.0"
+const SW_VERSION = "1.0.1"
 const CACHE_NAME = `phev-tracker-${SW_VERSION}`
 
 const STATIC_ASSETS = ["/", "/manifest.json"]
@@ -43,16 +43,42 @@ self.addEventListener("activate", (event) => {
 })
 
 self.addEventListener("fetch", (event) => {
+  const { request } = event
+  const url = new URL(request.url)
+
+  // For HTML documents, use network-first strategy
+  if (request.headers.get("accept")?.includes("text/html") || url.pathname === "/") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Clone and cache the response
+          if (response.ok) {
+            const responseClone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseClone)
+            })
+          }
+          return response
+        })
+        .catch(() => {
+          // Fallback to cache if network fails
+          return caches.match(request).then((cached) => cached || caches.match("/"))
+        }),
+    )
+    return
+  }
+
+  // For other assets, use cache-first strategy
   event.respondWith(
     caches
-      .match(event.request)
+      .match(request)
       .then((response) => {
         return (
           response ||
-          fetch(event.request).then((fetchResponse) => {
+          fetch(request).then((fetchResponse) => {
             return caches.open(CACHE_NAME).then((cache) => {
-              if (event.request.method === "GET") {
-                cache.put(event.request, fetchResponse.clone())
+              if (request.method === "GET") {
+                cache.put(request, fetchResponse.clone())
               }
               return fetchResponse
             })

@@ -66,6 +66,25 @@ export default function MileageTracker() {
       navigator.serviceWorker.register("/sw.js").then(
         (registration) => {
           console.log("[v0] Service Worker registered:", registration)
+
+          // Check for updates every 30 seconds
+          setInterval(() => {
+            registration.update()
+          }, 30000)
+
+          // Listen for updates
+          registration.addEventListener("updatefound", () => {
+            const newWorker = registration.installing
+            if (newWorker) {
+              newWorker.addEventListener("statechange", () => {
+                if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  // New service worker available, reload to activate
+                  console.log("[v0] New version available, reloading...")
+                  window.location.reload()
+                }
+              })
+            }
+          })
         },
         (error) => {
           console.log("[v0] Service Worker registration failed:", error)
