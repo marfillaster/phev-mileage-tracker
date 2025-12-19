@@ -29,6 +29,7 @@ import {
   loadVehicleData,
   saveVehicleData,
   deleteVehicle,
+  clearVehicleEntries, // Imported for clearing entries
   type VehicleData,
   getCurrencySymbol, // Imported for currency display
   updateVehicleCurrency, // Imported for currency update
@@ -54,6 +55,7 @@ export default function Overview() {
   const [vehicleData, setVehicleData] = useState<VehicleData | null>(null)
   const [selectedCurrency, setSelectedCurrency] = useState<string>("PHP")
   const [entries, setEntries] = useState<MileageEntry[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<TimeRange>("year")
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
@@ -63,18 +65,68 @@ export default function Overview() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [deleteVehicleConfirm, setDeleteVehicleConfirm] = useState<string | null>(null)
+  const [clearEntriesConfirm, setClearEntriesConfirm] = useState<string | null>(null)
   const { theme, toggleTheme } = useTheme()
   const importInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const data = loadVehicleData()
-    setVehicleData(data)
-    setEntries(data ? data.entries[data.currentVehicleId] || [] : [])
-    const currentVehicle = data.vehicles.find((v) => v.id === data.currentVehicleId)
-    if (currentVehicle?.currency) {
-      setSelectedCurrency(currentVehicle.currency)
+    if (data) {
+      setVehicleData(data)
+      const currentVehicle = data.vehicles.find((v) => v.id === data.currentVehicleId)
+      if (currentVehicle) {
+        setEntries(currentVehicle.entries)
+        if (currentVehicle.entries.length > 0) {
+          const sorted = [...currentVehicle.entries].sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+          )
+          const mostRecentYear = new Date(sorted[0].date).getFullYear()
+          setSelectedYear(mostRecentYear)
+        }
+        if (currentVehicle?.currency) {
+          setSelectedCurrency(currentVehicle.currency)
+        }
+      }
     }
+    setIsLoading(false)
   }, [])
+
+  // ADDED: useEffect to sync selectedYear when entries change
+  useEffect(() => {
+    if (!entries || !Array.isArray(entries) || entries.length === 0) {
+      setSelectedYear(new Date().getFullYear())
+      return
+    }
+
+    const sorted = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const mostRecentYear = new Date(sorted[0].date).getFullYear()
+
+    // Check if the most recent year has enough entries for metrics calculation
+    const entriesInMostRecentYear = entries.filter((e) => new Date(e.date).getFullYear() === mostRecentYear)
+
+    // If most recent year has at least 2 entries, use it; otherwise find a year with enough data
+    if (entriesInMostRecentYear.length >= 2) {
+      setSelectedYear(mostRecentYear)
+    } else {
+      // Find the year with the most entries
+      const yearCounts = new Map<number, number>()
+      entries.forEach((entry) => {
+        const year = new Date(entry.date).getFullYear()
+        yearCounts.set(year, (yearCounts.get(year) || 0) + 1)
+      })
+
+      let bestYear = mostRecentYear
+      let maxCount = 0
+      yearCounts.forEach((count, year) => {
+        if (count > maxCount) {
+          maxCount = count
+          bestYear = year
+        }
+      })
+
+      setSelectedYear(bestYear)
+    }
+  }, [entries])
 
   useEffect(() => {
     if (vehicleData) {
@@ -92,11 +144,23 @@ export default function Overview() {
       currentVehicleId: vehicleId,
     }
     setVehicleData(updatedData)
-    setEntries(updatedData.entries[vehicleId] || [])
-    // Update currency when vehicle is selected
-    const currentVehicle = updatedData.vehicles.find((v) => v.id === vehicleId)
-    if (currentVehicle?.currency) {
-      setSelectedCurrency(currentVehicle.currency)
+    const selectedVehicle = updatedData.vehicles.find((v) => v.id === vehicleId)
+    if (selectedVehicle) {
+      setEntries(selectedVehicle.entries)
+      // Update currency when vehicle is selected
+      if (selectedVehicle?.currency) {
+        setSelectedCurrency(selectedVehicle.currency)
+      }
+      // Set selectedYear to the most recent entry's year for the selected vehicle
+      if (selectedVehicle.entries.length > 0) {
+        const sorted = [...selectedVehicle.entries].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        )
+        const mostRecentYear = new Date(sorted[0].date).getFullYear()
+        setSelectedYear(mostRecentYear)
+      } else {
+        setSelectedYear(new Date().getFullYear())
+      }
     }
     saveVehicleData(updatedData)
   }
@@ -107,18 +171,16 @@ export default function Overview() {
       id: crypto.randomUUID(),
       name,
       createdAt: new Date().toISOString(),
+      entries: [], // Initialize with empty entries array
     }
     const updatedData = {
       ...vehicleData,
       vehicles: [...vehicleData.vehicles, newVehicle],
       currentVehicleId: newVehicle.id,
-      entries: {
-        ...vehicleData.entries,
-        [newVehicle.id]: [],
-      },
     }
     setVehicleData(updatedData)
     setEntries([])
+    setSelectedYear(new Date().getFullYear()) // Reset year for new vehicle
     saveVehicleData(updatedData)
   }
 
@@ -143,17 +205,45 @@ export default function Overview() {
     }
 
     setVehicleData(updatedData)
-    setEntries(updatedData.entries[updatedData.currentVehicleId] || [])
-    // Update currency when vehicle is deleted
+    // Adjusted to use the correct entry loading logic for the new current vehicle
     const currentVehicle = updatedData.vehicles.find((v) => v.id === updatedData.currentVehicleId)
-    if (currentVehicle?.currency) {
-      setSelectedCurrency(currentVehicle.currency)
+    if (currentVehicle) {
+      setEntries(currentVehicle.entries)
+      // Update currency when vehicle is deleted
+      if (currentVehicle?.currency) {
+        setSelectedCurrency(currentVehicle.currency)
+      } else {
+        // Fallback to default or a reasonable default if no currency is set
+        setSelectedCurrency("PHP")
+      }
+      // Set selectedYear to the most recent entry's year for the new current vehicle
+      if (currentVehicle.entries.length > 0) {
+        const sorted = [...currentVehicle.entries].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        )
+        const mostRecentYear = new Date(sorted[0].date).getFullYear()
+        setSelectedYear(mostRecentYear)
+      } else {
+        setSelectedYear(new Date().getFullYear())
+      }
     } else {
-      // Fallback to default or a reasonable default if no currency is set
-      setSelectedCurrency("PHP")
+      // If no vehicles are left, clear entries and reset year
+      setEntries([])
+      setSelectedYear(new Date().getFullYear())
     }
     saveVehicleData(updatedData)
     setDeleteVehicleConfirm(null)
+  }
+
+  const handleClearEntries = () => {
+    if (!vehicleData || !clearEntriesConfirm) return
+
+    const updatedData = clearVehicleEntries(vehicleData, clearEntriesConfirm)
+    setVehicleData(updatedData)
+    setEntries([]) // Clear local entries state
+    setSelectedYear(new Date().getFullYear()) // Reset year
+    saveVehicleData(updatedData)
+    setClearEntriesConfirm(null)
   }
 
   const handleCurrencyChange = (currency: string) => {
@@ -178,6 +268,11 @@ export default function Overview() {
   const availableYears = getAvailableYears()
 
   const calculateMetrics = (entries: MileageEntry[]) => {
+    if (!entries || !Array.isArray(entries)) {
+      console.log("[v0] calculateMetrics: entries is undefined or not an array")
+      return null
+    }
+
     console.log("[v0] calculateMetrics called with entries:", entries.length)
 
     const sorted = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -328,21 +423,36 @@ export default function Overview() {
     }
   }
 
-  const metrics = calculateMetrics(entries)
-
-  if (!vehicleData) {
-    return null
-  }
+  const metrics = entries && Array.isArray(entries) && entries.length > 0 ? calculateMetrics(entries) : null
 
   const currentVehicle = vehicleData?.vehicles.find((v) => v.id === vehicleData.currentVehicleId)
   const currencySymbol = getCurrencySymbol(currentVehicle?.currency || selectedCurrency)
 
-  if (entries.length < 3) {
+  if (isLoading) {
     return (
       <main className="min-h-screen bg-background">
         <AppToolbar
-          vehicles={vehicleData.vehicles}
-          currentVehicleId={vehicleData.currentVehicleId}
+          vehicles={vehicleData?.vehicles || []} // ADDED: Handle null vehicleData
+          currentVehicleId={vehicleData?.currentVehicleId || ""} // ADDED: Handle null vehicleData
+          onSelectVehicle={handleSelectVehicle}
+          onAddVehicle={handleAddVehicle}
+          onRenameVehicle={handleRenameVehicle}
+          onMenuClick={() => setMenuOpen(!menuOpen)}
+        />
+        <div className="container mx-auto p-4 md:p-8 max-w-7xl flex items-center justify-center min-h-[400px]">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+        <Footer />
+      </main>
+    )
+  }
+
+  if (!entries || entries.length < 3) {
+    return (
+      <main className="min-h-screen bg-background">
+        <AppToolbar
+          vehicles={vehicleData?.vehicles || []} // ADDED: Handle null vehicleData
+          currentVehicleId={vehicleData?.currentVehicleId || ""} // ADDED: Handle null vehicleData
           onSelectVehicle={handleSelectVehicle}
           onAddVehicle={handleAddVehicle}
           onRenameVehicle={handleRenameVehicle}
@@ -461,30 +571,57 @@ export default function Overview() {
                         )}
                       </button>
 
-                      <button
-                        onClick={() => {
-                          setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
-                          setMenuOpen(false)
-                        }}
-                        disabled={vehicleData?.vehicles.length === 1}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg
-                          className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                      <div className="grid grid-cols-2 gap-2 px-4">
+                        <button
+                          onClick={() => {
+                            setClearEntriesConfirm(vehicleData?.currentVehicleId || null)
+                            setMenuOpen(false)
+                          }}
+                          disabled={!entries || entries.length === 0}
+                          className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-orange-500/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <path d="M3 6h18" />
-                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        </svg>
-                        <span className="font-medium text-destructive">Delete Vehicle</span>
-                      </button>
+                          <svg
+                            className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                          <span className="text-sm font-medium text-orange-500">Clear Log</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                            setMenuOpen(false)
+                          }}
+                          disabled={vehicleData?.vehicles.length === 1}
+                          className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg
+                            className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          </svg>
+                          <span className="text-sm font-medium text-destructive">Delete Vehicle</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-auto px-3 pt-3 border-t">
@@ -527,8 +664,8 @@ export default function Overview() {
     return (
       <main className="min-h-screen bg-background">
         <AppToolbar
-          vehicles={vehicleData.vehicles}
-          currentVehicleId={vehicleData.currentVehicleId}
+          vehicles={vehicleData?.vehicles || []} // ADDED: Handle null vehicleData
+          currentVehicleId={vehicleData?.currentVehicleId || ""} // ADDED: Handle null vehicleData
           onSelectVehicle={handleSelectVehicle}
           onAddVehicle={handleAddVehicle}
           onRenameVehicle={handleRenameVehicle}
@@ -647,30 +784,57 @@ export default function Overview() {
                         )}
                       </button>
 
-                      <button
-                        onClick={() => {
-                          setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
-                          setMenuOpen(false)
-                        }}
-                        disabled={vehicleData?.vehicles.length === 1}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg
-                          className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                      <div className="grid grid-cols-2 gap-2 px-4">
+                        <button
+                          onClick={() => {
+                            setClearEntriesConfirm(vehicleData?.currentVehicleId || null)
+                            setMenuOpen(false)
+                          }}
+                          disabled={!entries || entries.length === 0}
+                          className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-orange-500/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <path d="M3 6h18" />
-                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        </svg>
-                        <span className="font-medium text-destructive">Delete Vehicle</span>
-                      </button>
+                          <svg
+                            className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                          <span className="text-sm font-medium text-orange-500">Clear Log</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                            setMenuOpen(false)
+                          }}
+                          disabled={vehicleData?.vehicles.length === 1}
+                          className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg
+                            className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M3 6h18" />
+                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          </svg>
+                          <span className="text-sm font-medium text-destructive">Delete Vehicle</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-auto px-3 pt-3 border-t">
@@ -698,6 +862,204 @@ export default function Overview() {
                 The selected time range doesn't have enough entries to calculate metrics. Try selecting a different year
                 or time range.
               </p>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </main>
+    )
+  }
+
+  // ADDED: Render UI even if vehicleData is still loading (i.e., null)
+  if (!vehicleData) {
+    return (
+      <main className="min-h-screen bg-background">
+        <AppToolbar
+          vehicles={[]} // ADDED: Handle null vehicleData
+          currentVehicleId={""} // ADDED: Handle null vehicleData
+          onSelectVehicle={handleSelectVehicle}
+          onAddVehicle={handleAddVehicle}
+          onRenameVehicle={handleRenameVehicle}
+          onMenuClick={() => setMenuOpen(!menuOpen)}
+        />
+        <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+          <div className="mb-8 flex items-start justify-between">
+            <Link href="/">
+              <Button variant="ghost" className="mb-4">
+                ← Back to Mileage Log
+              </Button>
+            </Link>
+            <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+              <SheetContent side="right" className="w-[280px] sm:w-[320px] p-0">
+                <SheetDescription className="sr-only">
+                  Navigation menu with export options, currency settings, and theme toggle
+                </SheetDescription>
+                <nav className="flex flex-col h-full py-6">
+                  <div className="px-3 space-y-1">
+                    <Link
+                      href="/"
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 group"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <List className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Mileage Log</span>
+                    </Link>
+                    <div className="h-px bg-border my-3" />
+                    <div className="px-4 py-3">
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Currency Display</label>
+                      <select
+                        value={selectedCurrency}
+                        onChange={(e) => handleCurrencyChange(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg bg-background border border-input hover:bg-accent/50 transition-colors text-sm"
+                        tabIndex={-1}
+                      >
+                        <option value="USD">USD - US Dollar ($)</option>
+                        <option value="EUR">EUR - Euro (€)</option>
+                        <option value="GBP">GBP - British Pound (£)</option>
+                        <option value="JPY">JPY - Japanese Yen (¥)</option>
+                        <option value="CNY">CNY - Chinese Yuan (¥)</option>
+                        <option value="INR">INR - Indian Rupee (₹)</option>
+                        <option value="AUD">AUD - Australian Dollar (A$)</option>
+                        <option value="CAD">CAD - Canadian Dollar (C$)</option>
+                        <option value="CHF">CHF - Swiss Franc (CHF)</option>
+                        <option value="KRW">KRW - South Korean Won (₩)</option>
+                        <option value="SGD">SGD - Singapore Dollar (S$)</option>
+                        <option value="HKD">HKD - Hong Kong Dollar (HK$)</option>
+                        <option value="SEK">SEK - Swedish Krona (kr)</option>
+                        <option value="NOK">NOK - Norwegian Krone (kr)</option>
+                        <option value="NZD">NZD - New Zealand Dollar (NZ$)</option>
+                        <option value="MXN">MXN - Mexican Peso (MX$)</option>
+                        <option value="ZAR">ZAR - South African Rand (R)</option>
+                        <option value="BRL">BRL - Brazilian Real (R$)</option>
+                        <option value="TRY">TRY - Turkish Lira (₺)</option>
+                        <option value="RUB">RUB - Russian Ruble (₽)</option>
+                        <option value="PHP">PHP - Philippine Peso (₱)</option>
+                      </select>
+                    </div>
+                    <div className="h-px bg-border my-3" />
+                    <button
+                      onClick={() => {
+                        exportJSON(entries)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <Download className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Export JSON</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        exportCSV(entries, generateCSV)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <FileText className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Export CSV</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        importInputRef.current?.click()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <Upload className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Import Data</span>
+                    </button>
+                    <div className="h-px bg-border my-3" />
+                    <button
+                      onClick={() => {
+                        toggleTheme()
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      {theme === "light" ? (
+                        <>
+                          <Moon className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          <span className="font-medium">Dark Mode</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sun className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          <span className="font-medium">Light Mode</span>
+                        </>
+                      )}
+                    </button>
+                    <div className="grid grid-cols-2 gap-2 px-4">
+                      <button
+                        onClick={() => {
+                          setClearEntriesConfirm(vehicleData?.currentVehicleId || null)
+                          setMenuOpen(false)
+                        }}
+                        disabled={!entries || entries.length === 0}
+                        className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-orange-500/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
+                        <span className="text-sm font-medium text-orange-500">Clear Log</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                          setMenuOpen(false)
+                        }}
+                        disabled={vehicleData?.vehicles.length === 1} // ADDED: Handle null vehicleData
+                        className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                        <span className="text-sm font-medium text-destructive">Delete Vehicle</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-auto px-3 pt-3 border-t">
+                    <button
+                      onClick={() => {
+                        setIsHelpOpen(true)
+                        setMenuOpen(false)
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-accent/50 transition-all duration-200 text-left w-full group"
+                    >
+                      <HelpCircle className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      <span className="font-medium">Help</span>
+                    </button>
+                  </div>
+                </nav>
+              </SheetContent>
+            </Sheet>
+          </div>
+          <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-border rounded-lg">
+            <div className="text-center space-y-4 max-w-md">
+              <TrendingUp className="h-16 w-16 mx-auto text-muted-foreground" />
+              <h3 className="text-xl font-semibold text-foreground">Loading vehicle data...</h3>
+              <p className="text-muted-foreground">Please wait while your vehicle information is being loaded.</p>
             </div>
           </div>
         </div>
@@ -829,30 +1191,57 @@ export default function Overview() {
                       )}
                     </button>
 
-                    <button
-                      onClick={() => {
-                        setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
-                        setMenuOpen(false)
-                      }}
-                      disabled={vehicleData?.vehicles.length === 1}
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <svg
-                        className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    <div className="grid grid-cols-2 gap-2 px-4">
+                      <button
+                        onClick={() => {
+                          setClearEntriesConfirm(vehicleData?.currentVehicleId || null)
+                          setMenuOpen(false)
+                        }}
+                        disabled={!entries || entries.length === 0}
+                        className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-orange-500/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                      </svg>
-                      <span className="font-medium text-destructive">Delete Vehicle</span>
-                    </button>
+                        <svg
+                          className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                          <line x1="10" y1="11" x2="10" y2="17" />
+                          <line x1="14" y1="11" x2="14" y2="17" />
+                        </svg>
+                        <span className="text-sm font-medium text-orange-500">Clear Log</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                          setMenuOpen(false)
+                        }}
+                        disabled={vehicleData?.vehicles.length === 1}
+                        className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <svg
+                          className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        </svg>
+                        <span className="text-sm font-medium text-destructive">Delete Vehicle</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-auto px-3 pt-3 border-t">
@@ -1226,6 +1615,26 @@ export default function Overview() {
           </div>
         )}
       </div>
+
+      {/* ADDED: AlertDialog for clearing entries */}
+      <AlertDialog open={clearEntriesConfirm !== null} onOpenChange={() => setClearEntriesConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Mileage Log?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete all mileage entries for this vehicle. The
+              vehicle itself will be kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearEntries} className="bg-orange-500 text-white hover:bg-orange-600">
+              Clear All Entries
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={deleteVehicleConfirm !== null} onOpenChange={() => setDeleteVehicleConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

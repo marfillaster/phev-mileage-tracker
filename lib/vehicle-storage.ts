@@ -108,6 +108,16 @@ export function deleteVehicle(data: VehicleData, vehicleId: string): VehicleData
   }
 }
 
+export function clearVehicleEntries(data: VehicleData, vehicleId: string): VehicleData {
+  const updatedEntries = { ...data.entries }
+  updatedEntries[vehicleId] = []
+
+  return {
+    ...data,
+    entries: updatedEntries,
+  }
+}
+
 export function getCurrencySymbol(currency: string): string {
   const symbols: Record<string, string> = {
     USD: "$",

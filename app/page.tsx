@@ -28,6 +28,7 @@ import {
   loadVehicleData,
   saveVehicleData,
   deleteVehicle,
+  clearVehicleEntries,
   type MileageEntry,
   type VehicleData,
   getCurrencySymbol,
@@ -49,6 +50,7 @@ export default function MileageTracker() {
   const [menuOpen, setMenuOpen] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [selectedCurrency, setSelectedCurrency] = useState<string>("PHP")
+  const [clearEntriesConfirm, setClearEntriesConfirm] = useState<string | null>(null)
 
   useEffect(() => {
     const data = loadVehicleData()
@@ -164,6 +166,16 @@ export default function MileageTracker() {
     setEntries(updatedData.entries[updatedData.currentVehicleId] || [])
     saveVehicleData(updatedData)
     setDeleteVehicleConfirm(null)
+  }
+
+  const handleClearEntries = () => {
+    if (!vehicleData || !clearEntriesConfirm) return
+
+    const updatedData = clearVehicleEntries(vehicleData, clearEntriesConfirm)
+    setVehicleData(updatedData)
+    setEntries([])
+    saveVehicleData(updatedData)
+    setClearEntriesConfirm(null)
   }
 
   const handleAddEntry = (entry: Omit<MileageEntry, "id">) => {
@@ -305,53 +317,213 @@ export default function MileageTracker() {
 
     const dummyData: MileageEntry[] = [
       {
-        date: "2025-08-26",
-        odo: 16138,
-        fuelAmount: 36.07,
-        fuelCost: 2130.06,
-        pluginAmount: 744.8,
-        energyTariff: 14,
-        id: "2caa8c91-1e01-4bc4-a53b-7ec0b786596a",
+        date: "2024-09-05",
+        hevOdo: 0,
+        evOdo: 0,
+        odo: 0,
+        fuelAmount: 45.3,
+        fuelCost: 2543.85,
+        pluginAmount: 0,
+        energyTariff: 13.5,
+        id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       },
       {
-        date: "2025-09-19",
-        odo: 17590,
-        fuelAmount: 44.42,
-        fuelCost: 2411.9,
-        pluginAmount: 906.8,
-        energyTariff: 14,
-        id: "3543f5e7-29cc-4b18-8816-03176053ece0",
+        date: "2024-10-02",
+        hevOdo: 510,
+        evOdo: 770,
+        odo: 1280,
+        fuelAmount: 42.8,
+        fuelCost: 2471.92,
+        pluginAmount: 115,
+        energyTariff: 14.2,
+        id: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
       },
       {
-        date: "2025-10-29",
-        odo: 19587,
-        fuelAmount: 40.76,
-        fuelCost: 2278.31,
-        pluginAmount: 1167.2,
-        energyTariff: 14,
-        id: "6cb6dbe5-5025-425a-ab2a-e1204f4a751f",
+        date: "2024-10-28",
+        hevOdo: 1060,
+        evOdo: 1610,
+        odo: 2670,
+        fuelAmount: 46.5,
+        fuelCost: 2660.7,
+        pluginAmount: 248,
+        energyTariff: 13.8,
+        id: "c3d4e5f6-a7b8-9012-cdef-123456789012",
       },
       {
-        date: "2025-11-13",
-        hevOdo: 9511,
-        evOdo: 11525,
-        odo: 21036,
-        fuelAmount: 48.11,
-        fuelCost: 2870,
-        pluginAmount: 1288,
-        energyTariff: 14,
-        id: "c6e58737-f3da-44f8-b997-8b80ba9670a2",
+        date: "2024-11-25",
+        hevOdo: 1540,
+        evOdo: 2350,
+        odo: 3890,
+        fuelAmount: 40.2,
+        fuelCost: 2291.4,
+        pluginAmount: 359,
+        energyTariff: 14.0,
+        id: "d4e5f6a7-b8c9-0123-def1-234567890123",
       },
       {
-        date: "2025-12-09",
-        hevOdo: 10069,
-        evOdo: 12352,
-        odo: 22420,
-        fuelAmount: 46.25,
-        fuelCost: 2730.94,
-        pluginAmount: 1420.4,
-        energyTariff: 14,
-        id: "44ee236f-8a29-44d2-afb4-d863387f6f0a",
+        date: "2024-12-20",
+        hevOdo: 2100,
+        evOdo: 3220,
+        odo: 5320,
+        fuelAmount: 47.8,
+        fuelCost: 2772.6,
+        pluginAmount: 489,
+        energyTariff: 15.5,
+        id: "e5f6a7b8-c9d0-1234-ef12-345678901234",
+      },
+      {
+        date: "2025-01-18",
+        hevOdo: 2640,
+        evOdo: 4050,
+        odo: 6690,
+        fuelAmount: 45.1,
+        fuelCost: 2539.3,
+        pluginAmount: 614,
+        energyTariff: 15.0,
+        id: "f6a7b8c9-d0e1-2345-f123-456789012345",
+      },
+      {
+        date: "2025-02-15",
+        hevOdo: 3230,
+        evOdo: 4970,
+        odo: 8200,
+        fuelAmount: 49.5,
+        fuelCost: 2872.65,
+        pluginAmount: 752,
+        energyTariff: 14.5,
+        id: "a7b8c9d0-e1f2-3456-1234-567890123456",
+      },
+      {
+        date: "2025-03-14",
+        hevOdo: 3720,
+        evOdo: 5720,
+        odo: 9440,
+        fuelAmount: 41.3,
+        fuelCost: 2395.44,
+        pluginAmount: 868,
+        energyTariff: 14.8,
+        id: "b8c9d0e1-f2a3-4567-2345-678901234567",
+      },
+      {
+        date: "2025-04-10",
+        hevOdo: 4290,
+        evOdo: 6610,
+        odo: 10900,
+        fuelAmount: 47.7,
+        fuelCost: 2766.66,
+        pluginAmount: 1001,
+        energyTariff: 15.2,
+        id: "c9d0e1f2-a3b4-5678-3456-789012345678",
+      },
+      {
+        date: "2025-05-08",
+        hevOdo: 4850,
+        evOdo: 7470,
+        odo: 12320,
+        fuelAmount: 46.9,
+        fuelCost: 2722.67,
+        pluginAmount: 1134,
+        energyTariff: 14.3,
+        id: "d0e1f2a3-b4c5-6789-4567-890123456789",
+      },
+      {
+        date: "2025-06-05",
+        hevOdo: 5380,
+        evOdo: 8270,
+        odo: 13650,
+        fuelAmount: 44.4,
+        fuelCost: 2574.96,
+        pluginAmount: 1257,
+        energyTariff: 13.9,
+        id: "e1f2a3b4-c5d6-7890-5678-901234567890",
+      },
+      {
+        date: "2025-07-02",
+        hevOdo: 5960,
+        evOdo: 9180,
+        odo: 15140,
+        fuelAmount: 48.6,
+        fuelCost: 2818.62,
+        pluginAmount: 1397,
+        energyTariff: 14.7,
+        id: "f2a3b4c5-d6e7-8901-6789-012345678901",
+      },
+      {
+        date: "2025-07-30",
+        hevOdo: 6440,
+        evOdo: 9850,
+        odo: 16290,
+        fuelAmount: 40.1,
+        fuelCost: 2325.8,
+        pluginAmount: 1501,
+        energyTariff: 15.1,
+        id: "a3b4c5d6-e7f8-9012-7890-123456789012",
+      },
+      {
+        date: "2025-08-27",
+        hevOdo: 7020,
+        evOdo: 10740,
+        odo: 17760,
+        fuelAmount: 48.5,
+        fuelCost: 2813.0,
+        pluginAmount: 1639,
+        energyTariff: 14.6,
+        id: "b4c5d6e7-f8a9-0123-8901-234567890123",
+      },
+      {
+        date: "2025-09-23",
+        hevOdo: 7540,
+        evOdo: 11520,
+        odo: 19060,
+        fuelAmount: 43.5,
+        fuelCost: 2523.45,
+        pluginAmount: 1759,
+        energyTariff: 13.7,
+        id: "c5d6e7f8-a9b0-1234-9012-345678901234",
+      },
+      {
+        date: "2025-10-20",
+        hevOdo: 8110,
+        evOdo: 12420,
+        odo: 20530,
+        fuelAmount: 47.7,
+        fuelCost: 2766.6,
+        pluginAmount: 1898,
+        energyTariff: 14.9,
+        id: "d6e7f8a9-b0c1-2345-0123-456789012345",
+      },
+      {
+        date: "2025-11-16",
+        hevOdo: 8590,
+        evOdo: 13140,
+        odo: 21730,
+        fuelAmount: 40.2,
+        fuelCost: 2331.6,
+        pluginAmount: 2009,
+        energyTariff: 15.3,
+        id: "e7f8a9b0-c1d2-3456-1234-567890123456",
+      },
+      {
+        date: "2025-12-13",
+        hevOdo: 9190,
+        evOdo: 14070,
+        odo: 23260,
+        fuelAmount: 50.2,
+        fuelCost: 2911.6,
+        pluginAmount: 2152,
+        energyTariff: 14.1,
+        id: "f8a9b0c1-d2e3-4567-2345-678901234567",
+      },
+      {
+        date: "2025-12-19",
+        hevOdo: 9450,
+        evOdo: 14460,
+        odo: 23910,
+        fuelAmount: 21.8,
+        fuelCost: 1263.92,
+        pluginAmount: 2212,
+        energyTariff: 14.4,
+        id: "a9b0c1d2-e3f4-5678-3456-789012345678",
       },
     ]
 
@@ -428,7 +600,7 @@ export default function MileageTracker() {
         onMenuClick={() => setMenuOpen(!menuOpen)}
       />
 
-      <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+      <div className="container mx-auto p-4 md:p-8 max-w-7xl pt-4 pb-24">
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Mileage Log</h1>
@@ -539,30 +711,56 @@ export default function MileageTracker() {
                     )}
                   </button>
 
-                  <button
-                    onClick={() => {
-                      setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
-                      setMenuOpen(false)
-                    }}
-                    disabled={vehicleData?.vehicles.length === 1}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left w-full group disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <svg
-                      className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
+                  <div className="grid grid-cols-2 gap-2 px-4">
+                    <button
+                      onClick={() => {
+                        setClearEntriesConfirm(vehicleData?.currentVehicleId || null)
+                        setMenuOpen(false)
+                      }}
+                      disabled={entries.length === 0}
+                      className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-orange-500/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <path d="M3 6h18" />
-                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                    </svg>
-                    <span className="font-medium text-destructive">Delete Vehicle</span>
-                  </button>
+                      <svg
+                        className="h-5 w-5 text-orange-500 group-hover:text-orange-600 transition-colors"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                      <span className="text-sm font-medium text-orange-500">Clear Log</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeleteVehicleConfirm(vehicleData?.currentVehicleId || null)
+                        setMenuOpen(false)
+                      }}
+                      disabled={vehicleData?.vehicles.length === 1}
+                      className="flex items-center gap-2 px-3 py-3 rounded-lg hover:bg-destructive/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg
+                        className="h-5 w-5 text-destructive group-hover:text-destructive transition-colors"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                      </svg>
+                      <span className="text-sm font-medium text-destructive">Delete Vehicle</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-auto px-3 pt-3 border-t">
@@ -617,7 +815,7 @@ export default function MileageTracker() {
             />
             <button
               onClick={() => setIsFormOpen(true)}
-              className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors flex items-center justify-center"
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors flex items-center justify-center z-40"
               aria-label="Add new entry"
             >
               <Plus className="h-6 w-6" />
@@ -644,21 +842,19 @@ export default function MileageTracker() {
         <InstallPrompt />
         <HelpInstructions open={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
-        <AlertDialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+        <AlertDialog open={clearEntriesConfirm !== null} onOpenChange={() => setClearEntriesConfirm(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle>Clear Mileage Log?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the mileage entry.
+                This action cannot be undone. This will permanently delete all mileage entries for this vehicle. The
+                vehicle itself will be kept.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete
+              <AlertDialogAction onClick={handleClearEntries} className="bg-orange-500 text-white hover:bg-orange-600">
+                Clear All Entries
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
