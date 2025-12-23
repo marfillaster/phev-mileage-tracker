@@ -671,13 +671,23 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                       <div className="text-sm text-muted-foreground">{calculated.daysSinceRefuel} days ago</div>
                     )}
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onUpdate(entry)} className="h-8 w-8">
-                      <Pencil className="h-4 w-4" />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onUpdate(entry)}
+                      className="h-10 w-10 touch-manipulation"
+                    >
+                      <Pencil className="h-5 w-5" />
                       <span className="sr-only">Edit entry</span>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => onDelete(entry.id)} className="h-8 w-8">
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDelete(entry.id)}
+                      className="h-10 w-10 touch-manipulation"
+                    >
+                      <Trash2 className="h-5 w-5 text-destructive" />
                       <span className="sr-only">Delete entry</span>
                     </Button>
                   </div>
