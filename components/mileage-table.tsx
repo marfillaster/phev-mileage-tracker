@@ -408,6 +408,8 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
               {sortedEntries.map((entry, index) => {
                 const prevEntry = sortedEntries[index + 1] || null
                 const calculated = calculateValues(entry, prevEntry)
+                const isFirstEntry = index === sortedEntries.length - 1
+                const hideOdo = isFirstEntry && entry.odo === 0
 
                 return (
                   <TableRow key={entry.id}>
@@ -424,14 +426,16 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
                       )}
                     </TableCell>
                     <TableCell className="align-top">
-                      <p className="text-right flex items-center justify-end gap-1">
-                        <Gauge className="h-3 w-3 text-orange-500" />
-                        {entry.odo.toFixed(1)}
-                      </p>
-                      {entry.evOdo && (
+                      {!hideOdo && entry.odo && (
+                        <p className="text-right flex items-center justify-end gap-1">
+                          <Gauge className="h-3 w-3 text-orange-500" />
+                          {entry.odo.toFixed(1)}
+                        </p>
+                      )}
+                      {!hideOdo && entry.evOdo && (
                         <p className="text-sm text-muted-foreground text-right">EV {entry.evOdo.toFixed(1)}</p>
                       )}
-                      {entry.hevOdo && (
+                      {!hideOdo && entry.hevOdo && (
                         <p className="text-sm text-muted-foreground text-right">HEV {entry.hevOdo.toFixed(1)}</p>
                       )}
                     </TableCell>
@@ -648,6 +652,8 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
         {sortedEntries.map((entry, index) => {
           const prevEntry = sortedEntries[index + 1] || null
           const calculated = calculateValues(entry, prevEntry)
+          const isFirstEntry = index === sortedEntries.length - 1
+          const hideOdo = isFirstEntry && entry.odo === 0
 
           return (
             <Card key={entry.id}>
@@ -766,18 +772,22 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "â‚
 
                   <dt className="text-muted-foreground align-top">ODO</dt>
                   <dd className="text-right font-medium flex items-center justify-end gap-1 align-top">
-                    <Gauge className="h-3 w-3 text-orange-500" />
-                    {entry.odo.toFixed(1)} km
+                    {!hideOdo && (
+                      <>
+                        <Gauge className="h-3 w-3 text-orange-500" />
+                        {entry.odo.toFixed(1)} km
+                      </>
+                    )}
                   </dd>
 
-                  {entry.evOdo && (
+                  {!hideOdo && entry.evOdo && (
                     <>
                       <dt className="text-muted-foreground align-top">EV ODO</dt>
                       <dd className="text-right align-top">{entry.evOdo.toFixed(1)} km</dd>
                     </>
                   )}
 
-                  {entry.hevOdo && (
+                  {!hideOdo && entry.hevOdo && (
                     <>
                       <dt className="text-muted-foreground align-top">HEV ODO</dt>
                       <dd className="text-right align-top">{entry.hevOdo.toFixed(1)} km</dd>
