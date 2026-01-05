@@ -5,8 +5,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Trash2, Pencil, Zap, Fuel, DollarSign, Gauge, Info, ChevronRight, ChevronDown } from "lucide-react"
+import { Trash2, Pencil, Zap, Fuel, Gauge, Info, ChevronRight, ChevronDown } from "lucide-react"
 import type { MileageEntry } from "@/app/page"
+
+// Helper function to format dates for consistency
+const formatDate = (date: Date) => {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
 
 interface MileageTableProps {
   entries: MileageEntry[]
@@ -33,14 +42,27 @@ export function MileageTable({
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
   const [energyView, setEnergyView] = useState<"total" | "perDay">("total")
   const [expandedFuel, setExpandedFuel] = useState<Set<string>>(new Set())
+  const [expandedEnergy, setExpandedEnergy] = useState<Set<string>>(new Set())
 
-  const toggleFuelExpansion = (entryId: string) => {
+  const toggleFuelExpansion = (id: string) => {
     setExpandedFuel((prev) => {
       const next = new Set(prev)
-      if (next.has(entryId)) {
-        next.delete(entryId)
+      if (next.has(id)) {
+        next.delete(id)
       } else {
-        next.add(entryId)
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const toggleEnergyExpansion = (id: string) => {
+    setExpandedEnergy((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
       }
       return next
     })
@@ -237,52 +259,7 @@ export function MileageTable({
                   </div>
                 </div>
               </TableHead>
-              <TableHead className="text-right w-[140px] min-w-[140px] max-w-[140px]">
-                <div
-                  className="flex items-center justify-end gap-2"
-                  onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
-                >
-                  Energy
-                  {energyView === "perDay" && "/Day"}
-                  <Popover
-                    open={openPopover === "energy"}
-                    onOpenChange={(open) => setOpenPopover(open ? "energy" : null)}
-                  >
-                    <PopoverTrigger asChild>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setOpenPopover(openPopover === "energy" ? null : "energy")
-                          }
-                        }}
-                      >
-                        <Info className="h-3.5 w-3.5" />
-                        <span className="sr-only">Energy formula</span>
-                      </span>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto text-sm" align="end">
-                      <div className="space-y-1">
-                        <p className="font-semibold">Energy Consumed:</p>
-                        <p>Current Plug-in - Previous Plug-in</p>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  <div className="flex gap-1">
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full border ${energyView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                    />
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full border ${energyView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                    />
-                  </div>
-                </div>
-              </TableHead>
+              {/* Removed the separate Energy column header */}
               <TableHead className="text-right w-[160px] min-w-[160px] max-w-[160px]">
                 <div
                   className="flex items-center justify-end gap-2 cursor-pointer select-none"
@@ -450,22 +427,12 @@ export function MileageTable({
               const hideOdo = isFirstEntry && entry.odo === 0
 
               const isFuelExpanded = expandedFuel.has(entry.id)
+              const isEnergyExpanded = expandedEnergy.has(entry.id)
 
               return (
                 <TableRow key={entry.id}>
-                  <TableCell className="font-medium align-top">
-                    <p>
-                      {new Date(entry.date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </p>
-                    {calculated.daysSinceRefuel > 0 && (
-                      <p className="text-sm text-muted-foreground">{calculated.daysSinceRefuel} days</p>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right w-[180px] min-w-[180px]">
+                  <TableCell className="whitespace-nowrap">{formatDate(new Date(entry.date))}</TableCell>
+                  <TableCell className="text-right w-[180px] min-w-[180px] align-top">
                     <div className="w-full min-h-[60px]">
                       {distanceMode === 0 ? (
                         // ODO details view
@@ -515,44 +482,6 @@ export function MileageTable({
                     </div>
                   </TableCell>
 
-                  <TableCell className="align-top w-[140px] min-w-[140px]">
-                    {energyView === "total" ? (
-                      <>
-                        <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                          <Gauge className="h-3 w-3 text-green-500" />
-                          {entry.pluginAmount.toFixed(2)} kWh
-                        </p>
-                        <p className="text-sm text-right">
-                          {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
-                        </p>
-                        {calculated.energy > 0 && (
-                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {entry.energyTariff.toFixed(2)}/kWh
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                          <Gauge className="h-3 w-3 text-green-500" />
-                          {calculated.daysSince > 0 ? (entry.pluginAmount / calculated.daysSince).toFixed(2) : "-"}{" "}
-                          kWh/day
-                        </p>
-                        <p className="text-sm text-right">
-                          {calculated.energy > 0 && calculated.daysSince > 0
-                            ? `${(calculated.energy / calculated.daysSince).toFixed(2)} kWh/day`
-                            : "-"}
-                        </p>
-                        {calculated.energy > 0 && (
-                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {entry.energyTariff.toFixed(2)}/kWh
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </TableCell>
                   <TableCell className="align-top w-[160px] min-w-[160px]">
                     {costView === "total" ? (
                       <>
@@ -560,13 +489,39 @@ export function MileageTable({
                           {currencySymbol}
                           {calculated.totalCost.toFixed(2)}
                         </p>
-                        {/* Energy cost row */}
                         {calculated.energyCost > 0 && (
-                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1 mt-1">
-                            <Zap className="h-3 w-3" />
-                            {currencySymbol}
-                            {calculated.energyCost.toFixed(2)}
-                          </p>
+                          <>
+                            <div className="flex items-center justify-end gap-1.5 text-sm text-muted-foreground mt-1">
+                              <button
+                                onClick={() => toggleEnergyExpansion(entry.id)}
+                                className="hover:text-foreground transition-colors p-0.5"
+                                aria-label={isEnergyExpanded ? "Hide energy details" : "Show energy details"}
+                              >
+                                {isEnergyExpanded ? (
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                              <Zap className="h-3 w-3" />
+                              <span>
+                                {currencySymbol}
+                                {calculated.energyCost.toFixed(2)}
+                              </span>
+                            </div>
+                            {/* Expanded energy details */}
+                            {isEnergyExpanded && (
+                              <>
+                                <p className="text-sm text-muted-foreground text-right pl-5">
+                                  {calculated.energy.toFixed(2)} kWh
+                                </p>
+                                <p className="text-sm text-muted-foreground text-right pl-5">
+                                  {currencySymbol}
+                                  {entry.energyTariff.toFixed(2)}/kWh
+                                </p>
+                              </>
+                            )}
+                          </>
                         )}
                         {/* Fuel cost row with chevron toggle */}
                         <div className="flex items-center justify-end gap-1.5 text-sm text-muted-foreground mt-1">
@@ -606,18 +561,18 @@ export function MileageTable({
                       <>
                         <p className="text-right">
                           {currencySymbol}
-                          {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km
+                          {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}
                         </p>
                         {calculated.evCostPerKm > 0 && (
                           <p className="text-sm text-muted-foreground text-right">
                             EV: {currencySymbol}
-                            {calculated.evCostPerKm.toFixed(2)}/km
+                            {calculated.evCostPerKm.toFixed(2)}
                           </p>
                         )}
                         {calculated.hevCostPerKm > 0 && (
                           <p className="text-sm text-muted-foreground text-right">
                             HEV: {currencySymbol}
-                            {calculated.hevCostPerKm.toFixed(2)}/km
+                            {calculated.hevCostPerKm.toFixed(2)}
                           </p>
                         )}
                       </>
@@ -625,18 +580,18 @@ export function MileageTable({
                       <>
                         <p className="text-right">
                           {currencySymbol}
-                          {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day
+                          {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}
                         </p>
                         {calculated.evCostPerDay > 0 && (
                           <p className="text-sm text-muted-foreground text-right">
                             EV: {currencySymbol}
-                            {calculated.evCostPerDay.toFixed(2)}/day
+                            {calculated.evCostPerDay.toFixed(2)}
                           </p>
                         )}
                         {calculated.hevCostPerDay > 0 && (
                           <p className="text-sm text-muted-foreground text-right">
                             HEV: {currencySymbol}
-                            {calculated.hevCostPerDay.toFixed(2)}/day
+                            {calculated.hevCostPerDay.toFixed(2)}
                           </p>
                         )}
                       </>
@@ -687,6 +642,7 @@ export function MileageTable({
                       </>
                     )}
                   </TableCell>
+
                   <TableCell className="text-center align-top w-[100px] min-w-[100px]">
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={() => onUpdate(entry)} className="h-8 w-8">
@@ -715,19 +671,14 @@ export function MileageTable({
           const hideOdo = isFirstEntry && entry.odo === 0
 
           const isFuelExpanded = expandedFuel.has(entry.id)
+          const isEnergyExpanded = expandedEnergy.has(entry.id)
 
           return (
             <Card key={entry.id}>
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <div className="font-semibold text-lg">
-                      {new Date(entry.date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </div>
+                    <div className="font-semibold text-lg">{formatDate(new Date(entry.date))}</div>
                     {calculated.daysSinceRefuel > 0 && (
                       <div className="text-sm text-muted-foreground">{calculated.daysSinceRefuel} days ago</div>
                     )}
@@ -895,14 +846,37 @@ export function MileageTable({
 
                   {calculated.energyCost > 0 && (
                     <>
-                      <dt className="text-muted-foreground flex items-center gap-1 align-top">
-                        <Zap className="h-3 w-3" />
-                        Energy Cost
+                      <dt className="text-muted-foreground align-top">
+                        <button
+                          onClick={() => toggleEnergyExpansion(entry.id)}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          aria-label={isEnergyExpanded ? "Hide energy details" : "Show energy details"}
+                        >
+                          {isEnergyExpanded ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                          Energy Cost
+                        </button>
                       </dt>
                       <dd className="text-right align-top">
                         {currencySymbol}
                         {calculated.energyCost.toFixed(2)}
                       </dd>
+
+                      {isEnergyExpanded && (
+                        <>
+                          <dt className="text-muted-foreground pl-4 text-xs align-top">Energy Used</dt>
+                          <dd className="text-right text-xs align-top">{calculated.energy.toFixed(2)} kWh</dd>
+
+                          <dt className="text-muted-foreground pl-4 text-xs align-top">Tariff</dt>
+                          <dd className="text-right text-xs align-top">
+                            {currencySymbol}
+                            {entry.energyTariff.toFixed(2)}/kWh
+                          </dd>
+                        </>
+                      )}
                     </>
                   )}
 
@@ -942,38 +916,75 @@ export function MileageTable({
                     </>
                   )}
 
-                  <dt className="text-muted-foreground flex items-center gap-1 align-top">
-                    <Gauge className="h-3 w-3 text-green-500" />
-                    Plug-in
+                  <dt className="text-muted-foreground align-top">
+                    <button
+                      onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+                      className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
+                    >
+                      Efficiency
+                      <div className="flex gap-0.5">
+                        <div
+                          className={`h-1.5 w-1.5 rounded-full border ${
+                            efficiencyUnit === "kmPer"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                        <div
+                          className={`h-1.5 w-1.5 rounded-full border ${
+                            efficiencyUnit === "per100"
+                              ? "bg-primary border-primary"
+                              : "bg-background border-muted-foreground"
+                          }`}
+                        />
+                      </div>
+                    </button>
                   </dt>
-                  <dd className="text-right align-top">{entry.pluginAmount.toFixed(2)} kWh</dd>
-
-                  <dt className="text-muted-foreground align-top">Energy Used</dt>
                   <dd className="text-right align-top">
-                    {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
+                    {efficiencyUnit === "kmPer" ? (
+                      <>
+                        <div className="font-medium">
+                          {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
+                        </div>
+                        {calculated.evWhPerKm > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            EV {calculated.evWhPerKm.toFixed(0)} Wh/km
+                          </div>
+                        )}
+                        {calculated.evEquivalentKmPerLiter > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
+                          </div>
+                        )}
+                        {calculated.hevKmPerLiter > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-medium">
+                          {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
+                        </div>
+                        {calculated.evKwhPer100km > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
+                          </div>
+                        )}
+                        {calculated.evEquivalentLitersPer100km > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
+                          </div>
+                        )}
+                        {calculated.hevLitersPer100km > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
+                          </div>
+                        )}
+                      </>
+                    )}
                   </dd>
-
-                  <dt className="text-muted-foreground flex items-center gap-1 align-top">
-                    <DollarSign className="h-3 w-3" />
-                    Tariff
-                  </dt>
-                  <dd className="text-right align-top">
-                    {currencySymbol}
-                    {entry.energyTariff.toFixed(2)}/kWh
-                  </dd>
-
-                  {calculated.energyCost > 0 && (
-                    <>
-                      <dt className="text-muted-foreground flex items-center gap-1 align-top">
-                        <Zap className="h-3 w-3" />
-                        Energy Cost
-                      </dt>
-                      <dd className="text-right align-top">
-                        {currencySymbol}
-                        {calculated.energyCost.toFixed(2)}
-                      </dd>
-                    </>
-                  )}
                 </dl>
               </CardContent>
             </Card>
