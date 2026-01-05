@@ -5,27 +5,54 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Trash2, Pencil, Zap, Fuel, DollarSign, Gauge, Info } from "lucide-react"
+import { Trash2, Pencil, Zap, Fuel, DollarSign, Gauge, Info, ChevronRight, ChevronDown } from "lucide-react"
 import type { MileageEntry } from "@/app/page"
 
 interface MileageTableProps {
   entries: MileageEntry[]
-  onUpdate: (entry: MileageEntry) => void // Fixed signature to match parent component
+  onUpdate: (entry: MileageEntry) => void
   onDelete: (id: string) => void
+  onExport?: () => void
   currencySymbol: string
+  currency?: string
 }
 
-export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "₱" }: MileageTableProps) {
+export function MileageTable({
+  entries,
+  onUpdate,
+  onDelete,
+  onExport,
+  currencySymbol = "₱",
+  currency = "PHP",
+}: MileageTableProps) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [distanceMode, setDistanceMode] = useState(0)
   const [openPopover, setOpenPopover] = useState<string | null>(null)
-  const [showDistancePerDay, setShowDistancePerDay] = useState(false)
+  const [showDistancePerDay, setShowDistancePerDay] = useState(false) // This is now redundant due to distanceMode
   const [costView, setCostView] = useState<"total" | "perKm" | "perDay">("total")
   const [efficiencyUnit, setEfficiencyUnit] = useState<"kmPer" | "per100">("kmPer")
   const [energyView, setEnergyView] = useState<"total" | "perDay">("total")
+  const [expandedFuel, setExpandedFuel] = useState<Set<string>>(new Set())
+
+  const toggleFuelExpansion = (entryId: string) => {
+    setExpandedFuel((prev) => {
+      const next = new Set(prev)
+      if (next.has(entryId)) {
+        next.delete(entryId)
+      } else {
+        next.add(entryId)
+      }
+      return next
+    })
+  }
 
   const sortedEntries = useMemo(() => {
     return [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [entries])
+
+  const cycleDistanceMode = () => {
+    setDistanceMode((prev) => (prev + 1) % 3)
+  }
 
   const calculateValues = (entry: MileageEntry, prevEntry: MileageEntry | null) => {
     if (!prevEntry) {
@@ -137,22 +164,198 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
 
   return (
     <>
-      <div className="hidden md:block rounded-lg border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">ODO (km)</TableHead>
-                <TableHead
-                  className="text-right cursor-pointer select-none"
-                  onClick={() => setShowDistancePerDay(!showDistancePerDay)}
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[110px] min-w-[110px] max-w-[110px]">Date</TableHead>
+              <TableHead
+                className="text-right cursor-pointer select-none w-[180px] min-w-[180px] max-w-[180px]"
+                onClick={cycleDistanceMode}
+              >
+                <div className="flex items-center justify-end gap-2 w-full">
+                  <span className="truncate">
+                    {distanceMode === 0 && "ODO (km)"}
+                    {distanceMode === 1 && "Distance (km)"}
+                    {distanceMode === 2 && "Distance/Day (km/day)"}
+                  </span>
+                  <Popover
+                    open={openPopover === "distance"}
+                    onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="inline-flex h-5 w-5 items-center justify-center cursor-pointer flex-shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setOpenPopover(openPopover === "distance" ? null : "distance")
+                          }
+                        }}
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                        <span className="sr-only">Distance formula</span>
+                      </span>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto text-sm" align="end">
+                      <div className="space-y-1">
+                        {distanceMode === 0 ? (
+                          <>
+                            <p className="font-semibold">ODO readings:</p>
+                            <p>Total ODO, EV ODO, HEV ODO</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-semibold">Distance:</p>
+                            <p>Current ODO - Previous ODO</p>
+                            {distanceMode === 2 && (
+                              <>
+                                <p className="font-semibold mt-2">Distance per day:</p>
+                                <p>Distance / Days since refuel</p>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <div className="flex gap-1">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${distanceMode === 0 ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${distanceMode === 1 ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${distanceMode === 2 ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                  </div>
+                </div>
+              </TableHead>
+              <TableHead className="text-right w-[140px] min-w-[140px] max-w-[140px]">
+                <div
+                  className="flex items-center justify-end gap-2"
+                  onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
                 >
-                  <div className="flex items-center justify-end gap-2">
-                    {showDistancePerDay ? "Distance/Day (km/day)" : "Distance (km)"}
+                  Energy
+                  {energyView === "perDay" && "/Day"}
+                  <Popover
+                    open={openPopover === "energy"}
+                    onOpenChange={(open) => setOpenPopover(open ? "energy" : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setOpenPopover(openPopover === "energy" ? null : "energy")
+                          }
+                        }}
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                        <span className="sr-only">Energy formula</span>
+                      </span>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto text-sm" align="end">
+                      <div className="space-y-1">
+                        <p className="font-semibold">Energy Consumed:</p>
+                        <p>Current Plug-in - Previous Plug-in</p>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <div className="flex gap-1">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${energyView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${energyView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                  </div>
+                </div>
+              </TableHead>
+              <TableHead className="text-right w-[160px] min-w-[160px] max-w-[160px]">
+                <div
+                  className="flex items-center justify-end gap-2 cursor-pointer select-none"
+                  onClick={() =>
+                    setCostView((prev) => (prev === "total" ? "perKm" : prev === "perKm" ? "perDay" : "total"))
+                  }
+                >
+                  Cost ({currencySymbol}){costView === "perKm" && "/km"}
+                  {costView === "perDay" && "/day"}
+                  <Popover open={openPopover === "cost"} onOpenChange={(open) => setOpenPopover(open ? "cost" : null)}>
+                    <PopoverTrigger asChild>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            setOpenPopover(openPopover === "cost" ? null : "cost")
+                          }
+                        }}
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                        <span className="sr-only">Cost formula</span>
+                      </span>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto text-sm" align="end">
+                      <div className="space-y-1.5">
+                        <p className="font-semibold">Cost Metrics:</p>
+                        <div>
+                          <p className="text-xs font-medium">Total Cost:</p>
+                          <p>Fuel Cost + Energy Cost</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium">Cost per Kilometer ({currencySymbol}/km):</p>
+                          <p className="text-xs">Combined: Total Cost ÷ Distance</p>
+                          <p className="text-xs">EV: Energy Cost ÷ EV Distance</p>
+                          <p className="text-xs">HEV: Fuel Cost ÷ HEV Distance</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium">Cost per Day ({currencySymbol}/day):</p>
+                          <p className="text-xs">Combined: Total Cost ÷ Days</p>
+                          <p className="text-xs">EV: Energy Cost ÷ Days</p>
+                          <p className="text-xs">HEV: Fuel Cost ÷ Days</p>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  <div className="flex gap-1">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${costView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${costView === "perKm" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full border ${costView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                    />
+                  </div>
+                </div>
+              </TableHead>
+              <TableHead className="text-right w-[100px] min-w-[100px] max-w-[100px]">
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
+                    className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                  >
+                    Efficiency
                     <Popover
-                      open={openPopover === "distance"}
-                      onOpenChange={(open) => setOpenPopover(open ? "distance" : null)}
+                      open={openPopover === "efficiency"}
+                      onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
                     >
                       <PopoverTrigger asChild>
                         <span
@@ -164,487 +367,343 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault()
                               e.stopPropagation()
-                              setOpenPopover(openPopover === "distance" ? null : "distance")
+                              setOpenPopover(openPopover === "efficiency" ? null : "efficiency")
                             }
                           }}
                         >
                           <Info className="h-3.5 w-3.5" />
-                          <span className="sr-only">Distance formula</span>
+                          <span className="sr-only">Efficiency formula</span>
                         </span>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto text-sm" align="end">
-                        <div className="space-y-1">
-                          <p className="font-semibold">Distance:</p>
-                          <p>Current ODO - Previous ODO</p>
-                          {showDistancePerDay && (
+                        <div className="space-y-1.5">
+                          <p className="font-semibold">Efficiency Metrics:</p>
+                          {efficiencyUnit === "kmPer" ? (
                             <>
-                              <p className="font-semibold mt-2">Distance per day:</p>
-                              <p>Distance / Days since refuel</p>
+                              <div>
+                                <p className="text-xs font-medium">Combined km/L:</p>
+                                <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV Wh/km:</p>
+                                <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV as km/L*:</p>
+                                <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">HEV km/L:</p>
+                                <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <p className="text-xs font-medium">Combined L/100km:</p>
+                                <p className="text-xs">100 ÷ Combined km/L</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV kWh/100km:</p>
+                                <p className="text-xs">Energy × 100 ÷ EV Distance</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">EV as L/100km*:</p>
+                                <p className="text-xs">100 ÷ EV km/L*</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium">HEV L/100km:</p>
+                                <p className="text-xs">100 ÷ HEV km/L</p>
+                              </div>
                             </>
                           )}
                         </div>
                       </PopoverContent>
                     </Popover>
-                    <div className="flex gap-1">
+                    <div className="flex gap-0.5">
                       <div
-                        className={`h-1.5 w-1.5 rounded-full border ${!showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                        className={`h-1.5 w-1.5 rounded-full border ${
+                          efficiencyUnit === "kmPer"
+                            ? "bg-primary border-primary"
+                            : "bg-background border-muted-foreground"
+                        }`}
                       />
                       <div
-                        className={`h-1.5 w-1.5 rounded-full border ${showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                      />
-                    </div>
-                  </div>
-                </TableHead>
-                <TableHead className="text-right">Fuel (L)</TableHead>
-                <TableHead className="text-right">
-                  <div
-                    className="flex items-center justify-end gap-2 cursor-pointer select-none"
-                    onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
-                  >
-                    Energy
-                    {energyView === "perDay" && "/Day"}
-                    <Popover
-                      open={openPopover === "energy"}
-                      onOpenChange={(open) => setOpenPopover(open ? "energy" : null)}
-                    >
-                      <PopoverTrigger asChild>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setOpenPopover(openPopover === "energy" ? null : "energy")
-                            }
-                          }}
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                          <span className="sr-only">Energy formula</span>
-                        </span>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto text-sm" align="end">
-                        <div className="space-y-1">
-                          <p className="font-semibold">Energy Consumed:</p>
-                          <p>Current Plug-in - Previous Plug-in</p>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <div className="flex gap-1">
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full border ${energyView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                      />
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full border ${energyView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                        className={`h-1.5 w-1.5 rounded-full border ${
+                          efficiencyUnit === "per100"
+                            ? "bg-primary border-primary"
+                            : "bg-background border-muted-foreground"
+                        }`}
                       />
                     </div>
-                  </div>
-                </TableHead>
-                <TableHead
-                  className="text-right cursor-pointer select-none"
-                  onClick={() =>
-                    setCostView((prev) => (prev === "total" ? "perKm" : prev === "perKm" ? "perDay" : "total"))
-                  }
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    Cost ({currencySymbol}){costView === "perKm" && "/km"}
-                    {costView === "perDay" && "/day"}
-                    <Popover
-                      open={openPopover === "cost"}
-                      onOpenChange={(open) => setOpenPopover(open ? "cost" : null)}
-                    >
-                      <PopoverTrigger asChild>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              setOpenPopover(openPopover === "cost" ? null : "cost")
-                            }
-                          }}
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                          <span className="sr-only">Cost formula</span>
-                        </span>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto text-sm" align="end">
-                        <div className="space-y-1.5">
-                          <p className="font-semibold">Cost Metrics:</p>
-                          <div>
-                            <p className="text-xs font-medium">Total Cost:</p>
-                            <p>Fuel Cost + Energy Cost</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium">Cost per Kilometer ({currencySymbol}/km):</p>
-                            <p className="text-xs">Combined: Total Cost ÷ Distance</p>
-                            <p className="text-xs">EV: Energy Cost ÷ EV Distance</p>
-                            <p className="text-xs">HEV: Fuel Cost ÷ HEV Distance</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium">Cost per Day ({currencySymbol}/day):</p>
-                            <p className="text-xs">Combined: Total Cost ÷ Days</p>
-                            <p className="text-xs">EV: Energy Cost ÷ Days</p>
-                            <p className="text-xs">HEV: Fuel Cost ÷ Days</p>
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                    <div className="flex gap-1">
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full border ${costView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                      />
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full border ${costView === "perKm" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                      />
-                      <div
-                        className={`h-1.5 w-1.5 rounded-full border ${costView === "perDay" ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
-                      />
-                    </div>
-                  </div>
-                </TableHead>
-                <TableHead className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
-                      className="flex items-center gap-2 hover:opacity-70 transition-opacity"
-                    >
-                      Efficiency
-                      <Popover
-                        open={openPopover === "efficiency"}
-                        onOpenChange={(open) => setOpenPopover(open ? "efficiency" : null)}
-                      >
-                        <PopoverTrigger asChild>
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            className="inline-flex h-5 w-5 items-center justify-center cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                setOpenPopover(openPopover === "efficiency" ? null : "efficiency")
-                              }
-                            }}
-                          >
-                            <Info className="h-3.5 w-3.5" />
-                            <span className="sr-only">Efficiency formula</span>
-                          </span>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto text-sm" align="end">
-                          <div className="space-y-1.5">
-                            <p className="font-semibold">Efficiency Metrics:</p>
-                            {efficiencyUnit === "kmPer" ? (
-                              <>
-                                <div>
-                                  <p className="text-xs font-medium">Combined km/L:</p>
-                                  <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV Wh/km:</p>
-                                  <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV as km/L*:</p>
-                                  <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">HEV km/L:</p>
-                                  <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div>
-                                  <p className="text-xs font-medium">Combined L/100km:</p>
-                                  <p className="text-xs">100 ÷ Combined km/L</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV kWh/100km:</p>
-                                  <p className="text-xs">Energy × 100 ÷ EV Distance</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV as L/100km*:</p>
-                                  <p className="text-xs">100 ÷ EV km/L*</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">HEV L/100km:</p>
-                                  <p className="text-xs">100 ÷ HEV km/L</p>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <div className="flex gap-0.5">
-                        <div
-                          className={`h-1.5 w-1.5 rounded-full border ${
-                            efficiencyUnit === "kmPer"
-                              ? "bg-primary border-primary"
-                              : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                        <div
-                          className={`h-1.5 w-1.5 rounded-full border ${
-                            efficiencyUnit === "per100"
-                              ? "bg-primary border-primary"
-                              : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                      </div>
-                    </button>
-                  </div>
-                </TableHead>
-                <TableHead className="w-[100px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedEntries.map((entry, index) => {
-                const prevEntry = sortedEntries[index + 1] || null
-                const calculated = calculateValues(entry, prevEntry)
-                const isFirstEntry = index === sortedEntries.length - 1
-                const hideOdo = isFirstEntry && entry.odo === 0
+                  </button>
+                </div>
+              </TableHead>
+              <TableHead className="text-right w-[100px] min-w-[100px] max-w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedEntries.map((entry, index) => {
+              const prevEntry = sortedEntries[index + 1] || null
+              const calculated = calculateValues(entry, prevEntry)
+              const isFirstEntry = index === sortedEntries.length - 1
+              const hideOdo = isFirstEntry && entry.odo === 0
 
-                return (
-                  <TableRow key={entry.id}>
-                    <TableCell className="font-medium align-top">
-                      <p>
-                        {new Date(entry.date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
-                      {calculated.daysSinceRefuel > 0 && (
-                        <p className="text-sm text-muted-foreground">{calculated.daysSinceRefuel} days</p>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      {!hideOdo && entry.odo && (
-                        <p className="text-right flex items-center justify-end gap-1">
-                          <Gauge className="h-3 w-3 text-orange-500" />
-                          {entry.odo.toFixed(1)}
-                        </p>
-                      )}
-                      {!hideOdo && entry.evOdo && (
-                        <p className="text-sm text-muted-foreground text-right">EV {entry.evOdo.toFixed(1)}</p>
-                      )}
-                      {!hideOdo && entry.hevOdo && (
-                        <p className="text-sm text-muted-foreground text-right">HEV {entry.hevOdo.toFixed(1)}</p>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <p className="text-right">
-                        {showDistancePerDay
-                          ? calculated.distancePerDay > 0
-                            ? calculated.distancePerDay.toFixed(1)
-                            : "-"
-                          : calculated.distance > 0
-                            ? calculated.distance.toFixed(1)
-                            : "-"}
-                      </p>
-                      {showDistancePerDay ? (
-                        <>
-                          {calculated.evDistancePerDay > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evDistancePerDay.toFixed(1)}
+              const isFuelExpanded = expandedFuel.has(entry.id)
+
+              return (
+                <TableRow key={entry.id}>
+                  <TableCell className="font-medium align-top">
+                    <p>
+                      {new Date(entry.date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                    {calculated.daysSinceRefuel > 0 && (
+                      <p className="text-sm text-muted-foreground">{calculated.daysSinceRefuel} days</p>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right w-[180px] min-w-[180px]">
+                    <div className="w-full min-h-[60px]">
+                      {distanceMode === 0 ? (
+                        // ODO details view
+                        <div className="space-y-1">
+                          {!hideOdo && entry.odo && (
+                            <p className="text-right flex items-center justify-end gap-1">
+                              <Gauge className="h-3 w-3 text-orange-500" />
+                              {entry.odo.toFixed(1)}
                             </p>
                           )}
+                          {!hideOdo && entry.evOdo && (
+                            <p className="text-sm text-muted-foreground text-right">EV {entry.evOdo.toFixed(1)}</p>
+                          )}
+                          {!hideOdo && entry.hevOdo && (
+                            <p className="text-sm text-muted-foreground text-right">HEV {entry.hevOdo.toFixed(1)}</p>
+                          )}
+                        </div>
+                      ) : distanceMode === 1 ? (
+                        // Distance view
+                        <div className="space-y-1">
+                          <p className="font-medium">
+                            {calculated.distance > 0 ? `${calculated.distance.toFixed(1)} km` : "-"}
+                          </p>
+                          {calculated.evDistance > 0 && (
+                            <p className="text-sm text-muted-foreground">EV {calculated.evDistance.toFixed(1)}</p>
+                          )}
+                          {calculated.hevDistance > 0 && (
+                            <p className="text-sm text-muted-foreground">HEV {calculated.hevDistance.toFixed(1)}</p>
+                          )}
+                        </div>
+                      ) : (
+                        // Distance per day view
+                        <div className="space-y-1">
+                          <p className="font-medium">
+                            {calculated.distancePerDay > 0 ? `${calculated.distancePerDay.toFixed(1)} km/day` : "-"}
+                          </p>
+                          {calculated.evDistancePerDay > 0 && (
+                            <p className="text-sm text-muted-foreground">EV {calculated.evDistancePerDay.toFixed(1)}</p>
+                          )}
                           {calculated.hevDistancePerDay > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
+                            <p className="text-sm text-muted-foreground">
                               HEV {calculated.hevDistancePerDay.toFixed(1)}
                             </p>
                           )}
-                        </>
-                      ) : (
-                        <>
-                          {calculated.evDistance > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evDistance.toFixed(1)}
-                            </p>
-                          )}
-                          {calculated.hevDistance > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              HEV {calculated.hevDistance.toFixed(1)}
-                            </p>
-                          )}
-                        </>
+                        </div>
                       )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <p className="text-right">{entry.fuelAmount.toFixed(2)}</p>
-                      {calculated.costPerLiter > 0 && (
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="align-top w-[140px] min-w-[140px]">
+                    {energyView === "total" ? (
+                      <>
                         <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          {calculated.costPerLiter.toFixed(2)}/L
+                          <Gauge className="h-3 w-3 text-green-500" />
+                          {entry.pluginAmount.toFixed(2)} kWh
                         </p>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      {energyView === "total" ? (
-                        <>
+                        <p className="text-sm text-right">
+                          {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
+                        </p>
+                        {calculated.energy > 0 && (
                           <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                            <Gauge className="h-3 w-3 text-green-500" />
-                            {entry.pluginAmount.toFixed(2)} kWh
+                            <DollarSign className="h-3 w-3" />
+                            {entry.energyTariff.toFixed(2)}/kWh
                           </p>
-                          <p className="text-sm text-right">
-                            {calculated.energy > 0 ? `${calculated.energy.toFixed(2)} kWh` : "-"}
-                          </p>
-                          {calculated.energy > 0 && (
-                            <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              {entry.energyTariff.toFixed(2)}/kWh
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
+                          <Gauge className="h-3 w-3 text-green-500" />
+                          {calculated.daysSince > 0 ? (entry.pluginAmount / calculated.daysSince).toFixed(2) : "-"}{" "}
+                          kWh/day
+                        </p>
+                        <p className="text-sm text-right">
+                          {calculated.energy > 0 && calculated.daysSince > 0
+                            ? `${(calculated.energy / calculated.daysSince).toFixed(2)} kWh/day`
+                            : "-"}
+                        </p>
+                        {calculated.energy > 0 && (
                           <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                            <Gauge className="h-3 w-3 text-green-500" />
-                            {calculated.daysSince > 0 ? (entry.pluginAmount / calculated.daysSince).toFixed(2) : "-"}{" "}
-                            kWh/day
+                            <DollarSign className="h-3 w-3" />
+                            {entry.energyTariff.toFixed(2)}/kWh
                           </p>
-                          <p className="text-sm text-right">
-                            {calculated.energy > 0 && calculated.daysSince > 0
-                              ? `${(calculated.energy / calculated.daysSince).toFixed(2)} kWh/day`
-                              : "-"}
-                          </p>
-                          {calculated.energy > 0 && (
-                            <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              {entry.energyTariff.toFixed(2)}/kWh
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      {costView === "total" ? (
-                        <>
-                          <p className="text-right">
+                        )}
+                      </>
+                    )}
+                  </TableCell>
+                  <TableCell className="align-top w-[160px] min-w-[160px]">
+                    {costView === "total" ? (
+                      <>
+                        <p className="text-right font-medium">
+                          {currencySymbol}
+                          {calculated.totalCost.toFixed(2)}
+                        </p>
+                        {/* Energy cost row */}
+                        {calculated.energyCost > 0 && (
+                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1 mt-1">
+                            <Zap className="h-3 w-3" />
                             {currencySymbol}
-                            {calculated.totalCost.toFixed(2)}
+                            {calculated.energyCost.toFixed(2)}
                           </p>
-                          {calculated.energyCost > 0 && (
-                            <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                              <Zap className="h-3 w-3" />
-                              {calculated.energyCost.toFixed(2)}
-                            </p>
-                          )}
-                          <p className="text-sm text-muted-foreground text-right flex items-center justify-end gap-1">
-                            <Fuel className="h-3 w-3" />
+                        )}
+                        {/* Fuel cost row with chevron toggle */}
+                        <div className="flex items-center justify-end gap-1.5 text-sm text-muted-foreground mt-1">
+                          <button
+                            onClick={() => toggleFuelExpansion(entry.id)}
+                            className="hover:text-foreground transition-colors p-0.5"
+                            aria-label={isFuelExpanded ? "Hide fuel details" : "Show fuel details"}
+                          >
+                            {isFuelExpanded ? (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                          <Fuel className="h-3 w-3" />
+                          <span>
+                            {currencySymbol}
                             {entry.fuelCost.toFixed(2)}
+                          </span>
+                        </div>
+                        {/* Expanded fuel details */}
+                        {isFuelExpanded && (
+                          <>
+                            <p className="text-sm text-muted-foreground text-right pl-5">
+                              {entry.fuelAmount.toFixed(2)} L
+                            </p>
+                            {calculated.costPerLiter > 0 && (
+                              <p className="text-sm text-muted-foreground text-right pl-5">
+                                {currencySymbol}
+                                {calculated.costPerLiter.toFixed(2)}/L
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </>
+                    ) : costView === "perKm" ? (
+                      <>
+                        <p className="text-right">
+                          {currencySymbol}
+                          {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km
+                        </p>
+                        {calculated.evCostPerKm > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            EV: {currencySymbol}
+                            {calculated.evCostPerKm.toFixed(2)}/km
                           </p>
-                        </>
-                      ) : costView === "perKm" ? (
-                        <>
-                          <p className="text-right">
-                            {currencySymbol}
-                            {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km
+                        )}
+                        {calculated.hevCostPerKm > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            HEV: {currencySymbol}
+                            {calculated.hevCostPerKm.toFixed(2)}/km
                           </p>
-                          {calculated.evCostPerKm > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV: {currencySymbol}
-                              {calculated.evCostPerKm.toFixed(2)}/km
-                            </p>
-                          )}
-                          {calculated.hevCostPerKm > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              HEV: {currencySymbol}
-                              {calculated.hevCostPerKm.toFixed(2)}/km
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-right">
-                            {currencySymbol}
-                            {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-right">
+                          {currencySymbol}
+                          {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day
+                        </p>
+                        {calculated.evCostPerDay > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            EV: {currencySymbol}
+                            {calculated.evCostPerDay.toFixed(2)}/day
                           </p>
-                          {calculated.evCostPerDay > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV: {currencySymbol}
-                              {calculated.evCostPerDay.toFixed(2)}/day
-                            </p>
-                          )}
-                          {calculated.hevCostPerDay > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              HEV: {currencySymbol}
-                              {calculated.hevCostPerDay.toFixed(2)}/day
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      {efficiencyUnit === "kmPer" ? (
-                        <>
-                          <p className="text-right">
-                            {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
+                        )}
+                        {calculated.hevCostPerDay > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            HEV: {currencySymbol}
+                            {calculated.hevCostPerDay.toFixed(2)}/day
                           </p>
-                          {calculated.evWhPerKm > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evWhPerKm.toFixed(0)} Wh/km
-                            </p>
-                          )}
-                          {calculated.evEquivalentKmPerLiter > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
-                            </p>
-                          )}
-                          {calculated.hevKmPerLiter > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-right">
-                            {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
+                        )}
+                      </>
+                    )}
+                  </TableCell>
+                  <TableCell className="align-top w-[100px] min-w-[100px]">
+                    {efficiencyUnit === "kmPer" ? (
+                      <>
+                        <p className="text-right">
+                          {calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}
+                        </p>
+                        {calculated.evWhPerKm > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            EV {calculated.evWhPerKm.toFixed(0)} Wh/km
                           </p>
-                          {calculated.evKwhPer100km > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
-                            </p>
-                          )}
-                          {calculated.evEquivalentLitersPer100km > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
-                            </p>
-                          )}
-                          {calculated.hevLitersPer100km > 0 && (
-                            <p className="text-sm text-muted-foreground text-right">
-                              HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
-                            </p>
-                          )}
-                        </>
-                      )}
-                    </TableCell>
-                    <TableCell className="align-top">
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => onUpdate(entry)} className="h-8 w-8">
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Edit entry</span>
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onDelete(entry.id)} className="h-8 w-8">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                          <span className="sr-only">Delete entry</span>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                        )}
+                        {calculated.evEquivalentKmPerLiter > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
+                          </p>
+                        )}
+                        {calculated.hevKmPerLiter > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            HEV {calculated.hevKmPerLiter.toFixed(2)} km/L
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-right">
+                          {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
+                        </p>
+                        {calculated.evKwhPer100km > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
+                          </p>
+                        )}
+                        {calculated.evEquivalentLitersPer100km > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
+                          </p>
+                        )}
+                        {calculated.hevLitersPer100km > 0 && (
+                          <p className="text-sm text-muted-foreground text-right">
+                            HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center align-top w-[100px] min-w-[100px]">
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => onUpdate(entry)} className="h-8 w-8">
+                        <Pencil className="h-4 w-4" />
+                        <span className="sr-only">Edit entry</span>
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => onDelete(entry.id)} className="h-8 w-8">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sr-only">Delete entry</span>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
       </div>
 
       {/* Mobile Card View */}
@@ -654,6 +713,8 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
           const calculated = calculateValues(entry, prevEntry)
           const isFirstEntry = index === sortedEntries.length - 1
           const hideOdo = isFirstEntry && entry.odo === 0
+
+          const isFuelExpanded = expandedFuel.has(entry.id)
 
           return (
             <Card key={entry.id}>
@@ -695,22 +756,28 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-4">
                   <dt className="text-muted-foreground flex items-start justify-between">
-                    <span>{showDistancePerDay ? "Distance/day" : "Distance"}</span>
+                    <span>
+                      {distanceMode === 0 && "ODO"}
+                      {distanceMode === 1 && "Distance"}
+                      {distanceMode === 2 && "Distance/day"}
+                    </span>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setShowDistancePerDay(!showDistancePerDay)}
-                        className="flex items-center gap-1 p-1"
-                      >
+                      <button onClick={cycleDistanceMode} className="flex items-center gap-1 p-1">
                         <div className="flex gap-0.5">
                           <div
                             className={`h-1.5 w-1.5 rounded-full border ${
-                              !showDistancePerDay
-                                ? "bg-primary border-primary"
-                                : "bg-background border-muted-foreground"
+                              distanceMode === 0 ? "bg-primary border-primary" : "bg-background border-muted-foreground"
                             }`}
                           />
                           <div
-                            className={`h-1.5 w-1.5 rounded-full border ${showDistancePerDay ? "bg-primary border-primary" : "bg-background border-muted-foreground"}`}
+                            className={`h-1.5 w-1.5 rounded-full border ${
+                              distanceMode === 1 ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                            }`}
+                          />
+                          <div
+                            className={`h-1.5 w-1.5 rounded-full border ${
+                              distanceMode === 2 ? "bg-primary border-primary" : "bg-background border-muted-foreground"
+                            }`}
                           />
                         </div>
                       </button>
@@ -726,12 +793,21 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
                         </PopoverTrigger>
                         <PopoverContent className="w-auto text-sm" align="end">
                           <div className="space-y-1">
-                            <p className="font-semibold">Distance:</p>
-                            <p>Current ODO - Previous ODO</p>
-                            {showDistancePerDay && (
+                            {distanceMode === 0 ? (
                               <>
-                                <p className="font-semibold mt-2">Distance per day:</p>
-                                <p>Distance / Days since refuel</p>
+                                <p className="font-semibold">ODO readings:</p>
+                                <p>Total ODO, EV ODO, HEV ODO</p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-semibold">Distance:</p>
+                                <p>Current ODO - Previous ODO</p>
+                                {distanceMode === 2 && (
+                                  <>
+                                    <p className="font-semibold mt-2">Distance per day:</p>
+                                    <p>Distance / Days since refuel</p>
+                                  </>
+                                )}
                               </>
                             )}
                           </div>
@@ -740,89 +816,129 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
                     </div>
                   </dt>
                   <dd className="text-right font-medium">
-                    {showDistancePerDay
-                      ? calculated.distancePerDay > 0
-                        ? `${calculated.distancePerDay.toFixed(1)} km/d`
-                        : "-"
-                      : calculated.distance > 0
-                        ? `${calculated.distance.toFixed(1)} km`
-                        : "-"}
-                  </dd>
-                  {showDistancePerDay ? (
-                    <>
-                      {calculated.evDistancePerDay > 0 && (
-                        <>
-                          <dt className="text-muted-foreground pl-4 align-top">EV</dt>
-                          <dd className="text-right align-top">{calculated.evDistancePerDay.toFixed(1)} km/d</dd>
-                        </>
-                      )}
-                      {calculated.hevDistancePerDay > 0 && (
-                        <>
-                          <dt className="text-muted-foreground pl-4 align-top">HEV</dt>
-                          <dd className="text-right align-top">{calculated.hevDistancePerDay.toFixed(1)} km/d</dd>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {calculated.evDistance > 0 && (
-                        <>
-                          <dt className="text-muted-foreground pl-4 align-top">EV</dt>
-                          <dd className="text-right align-top">{calculated.evDistance.toFixed(1)} km</dd>
-                        </>
-                      )}
-                      {calculated.hevDistance > 0 && (
-                        <>
-                          <dt className="text-muted-foreground pl-4 align-top">HEV</dt>
-                          <dd className="text-right align-top">{calculated.hevDistance.toFixed(1)} km</dd>
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  <dt className="text-muted-foreground align-top">ODO</dt>
-                  <dd className="text-right font-medium flex items-center justify-end gap-1 align-top">
-                    {!hideOdo && (
-                      <>
-                        <Gauge className="h-3 w-3 text-orange-500" />
-                        {entry.odo.toFixed(1)} km
-                      </>
+                    {distanceMode === 0 ? (
+                      // ODO details
+                      !hideOdo && entry.odo ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Gauge className="h-3 w-3 text-orange-500" />
+                          {entry.odo.toFixed(1)} km
+                        </div>
+                      ) : null
+                    ) : distanceMode === 1 ? (
+                      // Distance
+                      calculated.distance > 0 ? (
+                        `${calculated.distance.toFixed(1)} km`
+                      ) : (
+                        "-"
+                      )
+                    ) : // Distance per day
+                    calculated.distancePerDay > 0 ? (
+                      `${calculated.distancePerDay.toFixed(1)} km/d`
+                    ) : (
+                      "-"
                     )}
                   </dd>
 
-                  {!hideOdo && entry.evOdo && (
+                  {distanceMode === 0 ? (
+                    // ODO details - EV ODO
+                    !hideOdo && entry.evOdo ? (
+                      <>
+                        <dt className="text-muted-foreground pl-4 align-top">EV ODO</dt>
+                        <dd className="text-right align-top">{entry.evOdo.toFixed(1)} km</dd>
+                      </>
+                    ) : null
+                  ) : distanceMode === 1 ? (
+                    // Distance - EV Distance
+                    calculated.evDistance > 0 ? (
+                      <>
+                        <dt className="text-muted-foreground pl-4 align-top">EV</dt>
+                        <dd className="text-right align-top">{calculated.evDistance.toFixed(1)} km</dd>
+                      </>
+                    ) : null
+                  ) : // Distance per day - EV Distance per day
+                  calculated.evDistancePerDay > 0 ? (
                     <>
-                      <dt className="text-muted-foreground align-top">EV ODO</dt>
-                      <dd className="text-right align-top">{entry.evOdo.toFixed(1)} km</dd>
+                      <dt className="text-muted-foreground pl-4 align-top">EV</dt>
+                      <dd className="text-right align-top">{calculated.evDistancePerDay.toFixed(1)} km/d</dd>
                     </>
-                  )}
+                  ) : null}
 
-                  {!hideOdo && entry.hevOdo && (
+                  {distanceMode === 0 ? (
+                    // ODO details - HEV ODO
+                    !hideOdo && entry.hevOdo ? (
+                      <>
+                        <dt className="text-muted-foreground pl-4 align-top">HEV ODO</dt>
+                        <dd className="text-right align-top">{entry.hevOdo.toFixed(1)} km</dd>
+                      </>
+                    ) : null
+                  ) : distanceMode === 1 ? (
+                    // Distance - HEV Distance
+                    calculated.hevDistance > 0 ? (
+                      <>
+                        <dt className="text-muted-foreground pl-4 align-top">HEV</dt>
+                        <dd className="text-right align-top">{calculated.hevDistance.toFixed(1)} km</dd>
+                      </>
+                    ) : null
+                  ) : // Distance per day - HEV Distance per day
+                  calculated.hevDistancePerDay > 0 ? (
                     <>
-                      <dt className="text-muted-foreground align-top">HEV ODO</dt>
-                      <dd className="text-right align-top">{entry.hevOdo.toFixed(1)} km</dd>
+                      <dt className="text-muted-foreground pl-4 align-top">HEV</dt>
+                      <dd className="text-right align-top">{calculated.hevDistancePerDay.toFixed(1)} km/d</dd>
                     </>
-                  )}
+                  ) : null}
 
-                  <dt className="text-muted-foreground align-top">Fuel</dt>
-                  <dd className="text-right align-top">{entry.fuelAmount.toFixed(2)} L</dd>
-
-                  <dt className="text-muted-foreground align-top">Fuel Cost</dt>
-                  <dd className="text-right align-top">
+                  <dt className="text-muted-foreground font-medium align-top">Total Cost</dt>
+                  <dd className="text-right font-medium align-top">
                     {currencySymbol}
-                    {entry.fuelCost.toFixed(2)}
+                    {calculated.totalCost.toFixed(2)}
                   </dd>
 
-                  {calculated.costPerLiter > 0 && (
+                  {calculated.energyCost > 0 && (
                     <>
                       <dt className="text-muted-foreground flex items-center gap-1 align-top">
-                        <DollarSign className="h-3 w-3" />
-                        Cost/L
+                        <Zap className="h-3 w-3" />
+                        Energy Cost
                       </dt>
                       <dd className="text-right align-top">
                         {currencySymbol}
-                        {calculated.costPerLiter.toFixed(2)}
+                        {calculated.energyCost.toFixed(2)}
                       </dd>
+                    </>
+                  )}
+
+                  {entry.fuelCost > 0 && (
+                    <>
+                      <dt className="text-muted-foreground align-top">
+                        <button
+                          onClick={() => toggleFuelExpansion(entry.id)}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                          aria-label={isFuelExpanded ? "Hide fuel details" : "Show fuel details"}
+                        >
+                          {isFuelExpanded ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                          Fuel Cost
+                        </button>
+                      </dt>
+                      <dd className="text-right align-top">
+                        {currencySymbol}
+                        {entry.fuelCost.toFixed(2)}
+                      </dd>
+
+                      {isFuelExpanded && (
+                        <>
+                          <dt className="text-muted-foreground pl-4 text-xs align-top">Fuel Amount</dt>
+                          <dd className="text-right text-xs align-top">{entry.fuelAmount.toFixed(2)} L</dd>
+
+                          <dt className="text-muted-foreground pl-4 text-xs align-top">Cost per Liter</dt>
+                          <dd className="text-right text-xs align-top">
+                            {currencySymbol}
+                            {calculated.costPerLiter.toFixed(2)}/L
+                          </dd>
+                        </>
+                      )}
                     </>
                   )}
 
@@ -858,329 +974,14 @@ export function MileageTable({ entries, onUpdate, onDelete, currencySymbol = "�
                       </dd>
                     </>
                   )}
-
-                  <dt className="text-muted-foreground font-medium align-top">Total Cost</dt>
-                  <dd className="text-right font-medium align-top">
-                    {currencySymbol}
-                    {calculated.totalCost.toFixed(2)}
-                  </dd>
-
-                  <dt className="text-muted-foreground flex items-start justify-between col-span-1">
-                    <span>Cost</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          if (costView === "total") setCostView("perKm")
-                          else if (costView === "perKm") setCostView("perDay")
-                          else setCostView("total")
-                        }}
-                        className="flex items-center gap-1 p-1"
-                      >
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full border ${
-                            costView === "total" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full border ${
-                            costView === "perKm" ? "bg-primary border-primary" : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full border ${
-                            costView === "perDay"
-                              ? "bg-primary border-primary"
-                              : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                      </button>
-                      <Popover
-                        open={openPopover === `cost-${entry.id}`}
-                        onOpenChange={(open) => setOpenPopover(open ? `cost-${entry.id}` : null)}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                            <Info className="h-3.5 w-3.5" />
-                            <span className="sr-only">Cost formula</span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto text-sm" align="end">
-                          <div className="space-y-1.5">
-                            <p className="font-semibold">Cost Metrics:</p>
-                            <div>
-                              <p className="text-xs font-medium">Total Cost:</p>
-                              <p>Fuel Cost + Energy Cost</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium">Cost per Kilometer ({currencySymbol}/km):</p>
-                              <p className="text-xs">Combined: Total Cost ÷ Distance</p>
-                              <p className="text-xs">EV: Energy Cost ÷ EV Distance</p>
-                              <p className="text-xs">HEV: Fuel Cost ÷ HEV Distance</p>
-                            </div>
-                            <div>
-                              <p className="text-xs font-medium">Cost per Day ({currencySymbol}/day):</p>
-                              <p className="text-xs">Combined: Total Cost ÷ Days</p>
-                              <p className="text-xs">EV: Energy Cost ÷ Days</p>
-                              <p className="text-xs">HEV: Fuel Cost ÷ Days</p>
-                            </div>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </dt>
-                  {costView === "total" ? (
-                    <dd className="text-right align-top">
-                      <p>
-                        {currencySymbol}
-                        {calculated.totalCost.toFixed(2)}
-                      </p>
-                      {calculated.energyCost > 0 && (
-                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
-                          <Zap className="h-3 w-3" />
-                          {calculated.energyCost.toFixed(2)}
-                        </p>
-                      )}
-                      <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
-                        <Fuel className="h-3 w-3" />
-                        {entry.fuelCost.toFixed(2)}
-                      </p>
-                    </dd>
-                  ) : costView === "perKm" ? (
-                    <dd className="text-right align-top">
-                      <p>
-                        {currencySymbol}
-                        {calculated.costPerKm > 0 ? calculated.costPerKm.toFixed(2) : "-"}/km
-                      </p>
-                      {calculated.evCostPerKm > 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          EV: {currencySymbol}
-                          {calculated.evCostPerKm.toFixed(2)}/km
-                        </p>
-                      )}
-                      {calculated.hevCostPerKm > 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          HEV: {currencySymbol}
-                          {calculated.hevCostPerKm.toFixed(2)}/km
-                        </p>
-                      )}
-                    </dd>
-                  ) : (
-                    <dd className="text-right align-top">
-                      <p>
-                        {currencySymbol}
-                        {calculated.costPerDay > 0 ? calculated.costPerDay.toFixed(2) : "-"}/day
-                      </p>
-                      {calculated.evCostPerDay > 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          EV: {currencySymbol}
-                          {calculated.evCostPerDay.toFixed(2)}/day
-                        </p>
-                      )}
-                      {calculated.hevCostPerDay > 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          HEV: {currencySymbol}
-                          {calculated.hevCostPerDay.toFixed(2)}/day
-                        </p>
-                      )}
-                    </dd>
-                  )}
-
-                  <dt className="text-muted-foreground flex items-start justify-between col-span-1">
-                    <span>Energy</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEnergyView(energyView === "total" ? "perDay" : "total")}
-                        className="flex items-center gap-1 p-1"
-                      >
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full border ${
-                            energyView === "total"
-                              ? "bg-primary border-primary"
-                              : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                        <div
-                          className={`w-1.5 h-1.5 rounded-full border ${
-                            energyView === "perDay"
-                              ? "bg-primary border-primary"
-                              : "bg-background border-muted-foreground"
-                          }`}
-                        />
-                      </button>
-                      <Popover
-                        open={openPopover === `energy-${entry.id}`}
-                        onOpenChange={(open) => setOpenPopover(open ? `energy-${entry.id}` : null)}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                            <Info className="h-3.5 w-3.5" />
-                            <span className="sr-only">Energy formula</span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto text-sm" align="end">
-                          <div className="space-y-1">
-                            <p className="font-semibold">Energy Consumed:</p>
-                            <p>Current Plug-in - Previous Plug-in</p>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </dt>
-                  <dd className="text-right align-top col-span-1">
-                    {energyView === "total" ? (
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
-                          <Gauge className="h-3 w-3 text-green-500" />
-                          {entry.pluginAmount.toFixed(2)} kWh
-                        </p>
-                        {calculated.energy > 0 && <p className="text-sm">{calculated.energy.toFixed(2)} kWh</p>}
-                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3" />₱{entry.energyTariff.toFixed(2)}/kWh
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
-                          <Gauge className="h-3 w-3 text-green-500" />
-                          {calculated.daysSince > 0 ? (entry.pluginAmount / calculated.daysSince).toFixed(2) : "-"}{" "}
-                          kWh/day
-                        </p>
-                        {calculated.energy > 0 && calculated.daysSince > 0 && (
-                          <p className="text-sm">{(calculated.energy / calculated.daysSince).toFixed(2)} kWh/day</p>
-                        )}
-                        <p className="text-sm text-muted-foreground flex items-center justify-end gap-1">
-                          <DollarSign className="h-3 w-3" />₱{entry.energyTariff.toFixed(2)}/kWh
-                        </p>
-                      </div>
-                    )}
-                  </dd>
-
-                  <dt className="text-muted-foreground flex items-start justify-between col-span-1">
-                    <span>Efficiency</span>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setEfficiencyUnit(efficiencyUnit === "kmPer" ? "per100" : "kmPer")}
-                        className="flex items-center gap-1.5 hover:opacity-70 transition-opacity p-1"
-                      >
-                        <div className="flex gap-0.5">
-                          <div
-                            className={`h-1.5 w-1.5 rounded-full border ${
-                              efficiencyUnit === "kmPer"
-                                ? "bg-primary border-primary"
-                                : "bg-background border-muted-foreground"
-                            }`}
-                          />
-                          <div
-                            className={`h-1.5 w-1.5 rounded-full border ${
-                              efficiencyUnit === "per100"
-                                ? "bg-primary border-primary"
-                                : "bg-background border-muted-foreground"
-                            }`}
-                          />
-                        </div>
-                      </button>
-                      <Popover
-                        open={openPopover === `efficiency-${entry.id}`}
-                        onOpenChange={(open) => setOpenPopover(open ? `efficiency-${entry.id}` : null)}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
-                            <Info className="h-3.5 w-3.5" />
-                            <span className="sr-only">Efficiency formula</span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto text-sm" align="end">
-                          <div className="space-y-1.5">
-                            <p className="font-semibold">Efficiency Metrics:</p>
-                            {efficiencyUnit === "kmPer" ? (
-                              <>
-                                <div>
-                                  <p className="text-xs font-medium">Combined km/L:</p>
-                                  <p className="text-xs">Distance ÷ (Fuel + Energy Cost/Fuel Price per L)</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV Wh/km:</p>
-                                  <p className="text-xs">Energy (Wh) ÷ EV Distance</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV as km/L*:</p>
-                                  <p className="text-xs">Cost-equivalent: EV distance if energy was fuel</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">HEV km/L:</p>
-                                  <p className="text-xs">HEV Distance ÷ Fuel Amount</p>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div>
-                                  <p className="text-xs font-medium">Combined L/100km:</p>
-                                  <p className="text-xs">100 ÷ Combined km/L</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV kWh/100km:</p>
-                                  <p className="text-xs">Energy × 100 ÷ EV Distance</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">EV as L/100km*:</p>
-                                  <p className="text-xs">100 ÷ EV km/L*</p>
-                                </div>
-                                <div>
-                                  <p className="text-xs font-medium">HEV L/100km:</p>
-                                  <p className="text-xs">100 ÷ HEV km/L</p>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </dt>
-                  <dd className="text-sm space-y-1 col-span-1 self-start text-right">
-                    {efficiencyUnit === "kmPer" ? (
-                      <>
-                        <div>{calculated.kmPerLiter > 0 ? `${calculated.kmPerLiter.toFixed(2)} km/L` : "-"}</div>
-                        {calculated.evWhPerKm > 0 && (
-                          <div className="text-muted-foreground">EV {calculated.evWhPerKm.toFixed(0)} Wh/km</div>
-                        )}
-                        {calculated.evEquivalentKmPerLiter > 0 && (
-                          <div className="text-muted-foreground">
-                            EV {calculated.evEquivalentKmPerLiter.toFixed(2)} km/L*
-                          </div>
-                        )}
-                        {calculated.hevKmPerLiter > 0 && (
-                          <div className="text-muted-foreground">HEV {calculated.hevKmPerLiter.toFixed(2)} km/L</div>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          {calculated.litersPer100km > 0 ? `${calculated.litersPer100km.toFixed(2)} L/100km` : "-"}
-                        </div>
-                        {calculated.evKwhPer100km > 0 && (
-                          <div className="text-muted-foreground">
-                            EV {calculated.evKwhPer100km.toFixed(2)} kWh/100km
-                          </div>
-                        )}
-                        {calculated.evEquivalentLitersPer100km > 0 && (
-                          <div className="text-muted-foreground">
-                            EV {calculated.evEquivalentLitersPer100km.toFixed(2)} L/100km*
-                          </div>
-                        )}
-                        {calculated.hevLitersPer100km > 0 && (
-                          <div className="text-muted-foreground">
-                            HEV {calculated.hevLitersPer100km.toFixed(2)} L/100km
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </dd>
                 </dl>
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {/* ADDED closing fragment tag here */}
     </>
   )
 }
